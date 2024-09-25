@@ -1,6 +1,8 @@
 # already checked:
-# 1. crash_execs edge_execs seed_execs bug
+# 1. crash_execs edge_execs seed_execs lavam_bug
 # non-bug 只要知道大概数量即可，不需要精确统计
+# waiting list:
+# 1. magma_bug
 
 import multiprocessing
 import time

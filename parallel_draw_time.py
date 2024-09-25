@@ -1,11 +1,14 @@
 # already checked:
-# 1. crash_time seed_time edge_time non-bug-crash_time
-# 2. lavam_bug_time
-# waiting for check:
-# 1. crash_execs seed_execs edge_execs non-bug-crash_execs
-# 2. lavam_bug_execs
-# 3. magma_bug_execs
-# 4. magma_bug_time
+# 1. crash_time seed_time edge_time lavam_bug_time
+# non-bug 只要知道大概数量即可，不需要精确统计
+# waiting list:
+# 1. magma_bug
+
+# already checked:
+# 1. crash_execs edge_execs seed_execs lavam_bug
+# non-bug 只要知道大概数量即可，不需要精确统计
+# waiting list:
+# 1. magma_bug
 
 import multiprocessing
 import time
@@ -117,17 +120,12 @@ def getEdges(put, program, filename, mapfile):
 
 """这个脚本应该在 cache 文件夹下运行"""
 # CHANGE: 配置，这里经常要改变 ============================== start
-# TOTAL_TIME = 72 * 60 # 单位小时
-# SPLIT_UNIT = 1 # 每隔 1 小时
-# SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) # 分隔数量
-# ============================ execs-time 切换点
-TOTAL_TIME = 22000000 # 单位执行次数
-SPLIT_NUM = 72 * 60 # 分隔数量，分钟
-SPLIT_UNIT = int(TOTAL_TIME / SPLIT_NUM) # 分隔单元
+TOTAL_TIME = 72 # 单位小时
+SPLIT_UNIT = 1 # 每隔 1 小时
+SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) # 分隔数量
 # ==============================================================
 FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_empty_path_k_2", "path_fuzzer_empty_path_k_4", "path_fuzzer_empty_path_k_8"]
 # FUZZERS = ["aflplusplus", "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
-# FUZZERS = ["aflplusplus", "path_fuzzer_original_k_1", "path_fuzzer_original_k_2", "path_fuzzer_original_k_4", "path_fuzzer_original_k_8"]
 # FUZZERS = ["aflplusplus", "path_fuzzer_empty_path", "path_fuzzer_full_path", "cov_trans_fuzzer_empty_path", "cov_trans_fuzzer_full_path"]
 # ===================================================================
 REPEAT = 2 # 重复次数为 4
@@ -147,78 +145,6 @@ def getfiles(basedir):
     files = [f for f in os.listdir(basedir) 
         if os.path.isfile(os.path.join(basedir, f)) and not f.startswith('.')]
     return files
-
-"""用来收集 edge_execs 数据的工作函数"""
-def edge_execs_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    edge_execs_slot = [0] * SPLIT_NUM
-    edge_execs_slot_dict = [{} for _ in range(SPLIT_NUM)] 
-    crashdir = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/crashes/"
-    queuedir = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/queue/"
-    # 无论何时，PUT 都是同一个
-    put = "aflplusplus" + "/" + TARGET + "/" + thePROGRAM + "/0/afl/" + thePROGRAM
-
-    # 先获取 crashes 的 edges
-    files = getfiles(crashdir)
-    print("PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + ", len(crash_files) = " + str(len(files)))
-    sys.stdout.flush()
-
-    for crash_file in files:
-        matches = re.findall(r"execs:(\d+)", crash_file)
-        assert(len(matches) < 2)
-        if matches:
-            # 如果是 +pat 种子，那么跳过，因为它必不增加 edge-cov 
-            pat_matches = re.findall(r"\+pat", crash_file)
-            assert(len(pat_matches) < 2)
-            if pat_matches:
-                continue
-            # NOTE: 转换
-            crash_execs = int(matches[0])
-            for i in range(SPLIT_NUM):
-                if crash_execs < (i+1) * SPLIT_UNIT:
-                    # NOTE: 计算这个单独文件触发的边缘字典
-                    triggered_edges_set = getEdges(put, thePROGRAM, crashdir + crash_file, "mapfile" + str(task_count))
-                    # 在边缘字典槽里更新
-                    edge_execs_slot_dict[i].update(triggered_edges_set)
-                    break
-
-    # 再获取 seeds 的 edges
-    files = getfiles(queuedir)
-    print("PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + ", len(seed_files) = " + str(len(files)))
-    sys.stdout.flush()
-
-    for seed_file in files:
-        matches = re.findall(r"execs:(\d+)", seed_file)
-        assert(len(matches) < 2)
-        if matches:
-            # 如果是 +pat 种子，那么跳过，因为它必不增加 edge-cov 
-            pat_matches = re.findall(r"\+pat", seed_file)
-            assert(len(pat_matches) < 2)
-            if pat_matches:
-                continue
-            # 转换
-            seed_execs = int(matches[0])
-            for i in range(SPLIT_NUM):
-                if seed_execs < (i+1) * SPLIT_UNIT:
-                    # NOTE: 计算这个单独文件触发的边缘字典
-                    triggered_edges_set = getEdges(put, thePROGRAM, queuedir + seed_file, "mapfile" + str(task_count))
-                    # 在边缘字典槽里更新
-                    edge_execs_slot_dict[i].update(triggered_edges_set)
-                    break
-
-    # 先从增量数组转为存量数组
-    for i in range(SPLIT_NUM-1):
-        edge_execs_slot_dict[i+1].update(edge_execs_slot_dict[i])
-
-    # 再从字典数组转为 edges 数量数组
-    for i in range(SPLIT_NUM):
-        edge_execs_slot[i] = len(edge_execs_slot_dict[i])
-
-    global finished_tasks
-    with finished_tasks.get_lock():
-        finished_tasks.value += 1
-        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{thePROGRAM}-{TIME} data collect")
-        sys.stdout.flush()
-    return (FUZZER, TARGET, thePROGRAM, TIME, edge_execs_slot)
 
 """用来收集 edge_time 数据的工作函数"""
 def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
@@ -293,10 +219,6 @@ def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
         sys.stdout.flush()
     return (FUZZER, TARGET, thePROGRAM, TIME, edge_time_slot)
 
-"""用来收集 non_bug_crash_execs 数据的工作函数"""
-def non_bug_crash_execs_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    pass
-
 """用来收集 non_bug_crash_time 数据的工作函数"""
 def non_bug_crash_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
     non_bug_crash_time_slot = [0] * SPLIT_NUM
@@ -354,16 +276,9 @@ def non_bug_crash_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
         sys.stdout.flush()
     return (FUZZER, TARGET, thePROGRAM, TIME, non_bug_crash_time_slot)
 
-"""用来收集 magma bug_execs 数据的工作函数"""
-def magma_bug_execs_worker(FUZZER, TARGET, thePROGRAM, TIME):
-    pass
 
 """用来收集 magma bug_time 数据的工作函数"""
 def magma_bug_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    pass
-
-"""用来收集 lavam bug_execs 数据的工作函数"""
-def lavam_bug_execs_worker(FUZZER, TARGET, thePROGRAM, TIME):
     pass
 
 """用来收集 lavam bug_time 数据的工作函数"""
@@ -473,32 +388,6 @@ def lavam_bug_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
         sys.stdout.flush()
     return (FUZZER, TARGET, thePROGRAM, TIME, bug_time_slot)
 
-"""用来收集 seed_execs 数据的工作函数"""
-def seed_execs_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    seed_execs_slot = [0] * SPLIT_NUM
-    path = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/queue/"
-    files = getfiles(path)
-    for seed_file in files:
-        matches = re.findall(r"execs:(\d+)", seed_file)
-        assert(len(matches) < 2)
-        if matches:
-            seed_execs = int(matches[0])
-            # 如果时间戳没有超过配置最大值，那么记录数据
-            for i in range(SPLIT_NUM):
-                if seed_execs < (i+1)*SPLIT_UNIT:
-                    seed_execs_slot[i] += 1
-                    break
-    # 从增量数组转为存量数组
-    for i in range(SPLIT_NUM-1):
-        seed_execs_slot[i+1] += seed_execs_slot[i]
-    # 打印表示目前任务已完成(需要加锁)
-    global finished_tasks
-    with finished_tasks.get_lock():
-        finished_tasks.value += 1
-        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{thePROGRAM}-{TIME} data collect")
-        sys.stdout.flush()
-    return (FUZZER, TARGET, thePROGRAM, TIME, seed_execs_slot)
-
 """用来收集 seed_time 数据的工作函数"""
 def seed_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
     seed_time_slot = [0] * SPLIT_NUM
@@ -524,35 +413,6 @@ def seed_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
         print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{thePROGRAM}-{TIME} data collect")
         sys.stdout.flush()
     return (FUZZER, TARGET, thePROGRAM, TIME, seed_time_slot)
-
-"""用来收集 crash_execs 数据的工作函数"""
-def crash_execs_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    crash_execs_slot = [0] * SPLIT_NUM
-    path = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/crashes/"
-    files = getfiles(path)
-    for crash_file in files:
-        matches = re.findall(r"execs:(\d+)", crash_file)
-        assert(len(matches) < 2)
-        if matches:
-            # NOTE: 需要修改时间转换代码
-            crash_execs = int(matches[0])
-
-            for i in range(SPLIT_NUM):
-                if crash_execs < (i+1)*SPLIT_UNIT:
-                    crash_execs_slot[i] += 1
-                    break
-
-    # 从增量数组转为存量数组
-    for i in range(SPLIT_NUM-1):
-        crash_execs_slot[i+1] += crash_execs_slot[i]
-
-    # 打印表示目前任务已完成(需要加锁)
-    global finished_tasks
-    with finished_tasks.get_lock():
-        finished_tasks.value += 1
-        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{thePROGRAM}-{TIME} data collect")
-        sys.stdout.flush()
-    return (FUZZER, TARGET, thePROGRAM, TIME, crash_execs_slot)
 
 """用来收集 crash_time 数据的工作函数"""
 def crash_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
@@ -583,7 +443,7 @@ def crash_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
 # CHANGE: 这里根据不同的数据收集任务需要改变
 """总工作函数"""
 def worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    return crash_execs_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count)
+    return crash_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count)
 
 def main():
     # CHANGE: 有时候当前文件夹不一定是 cache
@@ -608,7 +468,7 @@ def main():
     TARGETS = TARGETS_list[0]
 
     # CHANGE 自定义 TARGETS 包含哪些
-    TARGETS = ["base64", "md5sum", "uniq", "who"]
+    TARGETS = ["libsndfile", "libpng", "libtiff", "libxml2"]
 
     # NOTE: 检验是否所有 PROGRAMS 都一样 ==========================
     PROGRAMS_list = []
@@ -642,10 +502,6 @@ def main():
     task_count = 0
     for PROGRAM in PROGRAMS:
 
-        # CHANGE: 等 MAGMA 找 bugs 完善后，要修改这里
-        # if PROGRAM == "libpng_read_fuzzer" or PROGRAM == "exif":
-            # continue
-
         for FUZZER in FUZZERS:
             for TARGET in TARGETS:
 
@@ -676,10 +532,6 @@ def main():
     # 绘图:
     for PROGRAM in PROGRAMS:
 
-        # CHANGE: 等 MAGMA 找 bugs 完善后，要修改这里
-        # if PROGRAM == "libpng_read_fuzzer" or PROGRAM == "exif":
-            # continue
-
         plt.figure()  # 创建一个新的图形
 
         for FUZZER in FUZZERS:
@@ -701,8 +553,7 @@ def main():
                 result_time_slot_avg[i] /= REPEAT
                 result_time_slot_avg[i] = round(result_time_slot_avg[i])
             # 开始绘图  CHANGE:
-            # x = [ (i+1) for i in range(SPLIT_NUM) ]
-            x = [ (i+1)*SPLIT_UNIT for i in range(SPLIT_NUM) ]
+            x = [ (i+1) for i in range(SPLIT_NUM) ]
             y = result_time_slot_avg
             # 绘制图形
             plt.plot(x, y, linestyle='-', label=FUZZER) 
@@ -712,7 +563,7 @@ def main():
         # 添加标题和标签 CHANGE:
         # 注意：edges 最好使用 min 作为横轴单位！！！
         plt.title(PROGRAM + ' crash-time graph')
-        plt.xlabel('# execs')
+        plt.xlabel('time(h)')
         plt.ylabel('# crashes')
         # 保存图形为文件: 每个 PROGRAM 画一张图
         plt.savefig('crash_time_' + PROGRAM + '_empty.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
