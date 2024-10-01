@@ -148,7 +148,10 @@ for result in results:
     result.wait()
 
 ############################################### 额外：统计各程序 max_execs   ##################################################
-    # CHANGE: 如果横轴是 execs，那么需要获取 REPEAT x #FUZZERS 个 max_execs，然后取最小的
+# 每个 PROGRAM 取它最小的 max_execs
+max_execs_dict = {}
+for PROGRAM in PROGRAMS:
+    # 每个 PROGRAM，需要取 REPEAT x #FUZZERS 个 max_execs，然后取最小的
     max_execs_list = []
     for FUZZER in FUZZERS:
         # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，获取 dfs
@@ -170,9 +173,9 @@ for result in results:
                 assert(0)
     # 此时，max_execs_list 的长度达到了 REPEAT x len(FUZZERS)
     assert(len(max_execs_list) == len(FUZZERS) * REPEAT)
-    # 这个就是这个程序最大的 execs
+    # 这个就是这个程序有效的最大的 execs (最小的 max_execs)
     max_execs = min(max_execs_list)
-
+    max_execs_dict[PROGRAM] = max_execs
 
 ############################################### 4. 绘制 crash_time   ##################################################
 if draw_configure["crash_time"]:
@@ -247,6 +250,9 @@ if draw_configure["crash_time"]:
 for PROGRAM in PROGRAMS:
 
     plt.figure()  # 创建一个新的图形
+    # CHANGE: 获取这个程序的 max_execs
+    max_execs = max_execs_dict[PROGRAM]
+    SPLIT_UNIT = (max_execs / SPLIT_NUM)
 
     for FUZZER in FUZZERS:
         # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，获取 dfs
