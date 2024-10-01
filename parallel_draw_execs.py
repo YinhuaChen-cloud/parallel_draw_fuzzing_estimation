@@ -378,7 +378,7 @@ def crash_execs_worker(FUZZER, TARGET, thePROGRAM, TIME, max_execs, task_count):
 # CHANGE: 这里根据不同的数据收集任务需要改变
 """总工作函数"""
 def worker(FUZZER, TARGET, thePROGRAM, TIME, max_execs, task_count):
-    return lavam_bug_execs_worker(FUZZER, TARGET, thePROGRAM, TIME, max_execs, task_count)
+    return seed_execs_worker(FUZZER, TARGET, thePROGRAM, TIME, max_execs, task_count)
 
 """用来收集各 PROGRAM 最大 execs 的工作函数"""
 def get_max_execs_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
@@ -426,7 +426,7 @@ def main():
     TARGETS = TARGETS_list[0]
 
     # CHANGE 自定义 TARGETS 包含哪些
-    TARGETS = ["base64", "md5sum", "uniq", "who"]
+    TARGETS = ["libsndfile", "libpng", "libtiff", "libxml2"]
 
     # NOTE: 检验是否所有 PROGRAMS 都一样 ==========================
     PROGRAMS_list = []
@@ -584,11 +584,11 @@ def main():
             plt.legend()
 
         # 添加标题和标签 CHANGE:
-        plt.title(PROGRAM + ' bug-execs graph')
+        plt.title(PROGRAM + ' seed-execs graph')
         plt.xlabel('# execs')
-        plt.ylabel('# unique bugs')
+        plt.ylabel('# seeds')
         # 保存图形为文件: 每个 PROGRAM 画一张图
-        plt.savefig('bug_execs_' + PROGRAM + '_empty.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+        plt.savefig('seed_execs_' + PROGRAM + '_empty.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
 
     print("total " + str(len(results)) + " fuzzing result collect tasks")
     sys.stdout.flush()
