@@ -35,9 +35,9 @@ draw_configure = {
     "crash_execs"    : False,
     "seed_time"      : False,
     "seed_execs"     : False,
-    "edge_time"      : True,
-    "edge_execs"     : True,
-    "Throughput_time": True,
+    "edge_time"      : False,
+    "edge_execs"     : False,
+    "throughput_time": True,
 }
 
 ############################################### 1. 一些函数的定义    ##################################################
@@ -342,11 +342,16 @@ if draw_configure["seed_execs"]:
     draw_execs("seed", "corpus_count", True)
 
 ############################################### 8. 绘制 edge_time    ##################################################
+if draw_configure["edge_time"]:
+    draw_time("edge", "edges_found", True)
 
 ############################################### 9. 绘制 edge_execs   ##################################################
+if draw_configure["edge_execs"]:
+    draw_execs("edge", "edges_found", True)
 
 ############################################### 10. 绘制 Throughput  ##################################################
-
+if draw_configure["throughput_time"]:
+    draw_time("execs_per_sec", "execs_per_sec", False)
 
 ############################################### 要结束了             ##################################################
 pool.close()
