@@ -1,15 +1,3 @@
-# already checked:
-# 1. crash_time seed_time edge_time lavam_bug_time
-# non-bug 只要知道大概数量即可，不需要精确统计
-# waiting list:
-# 1. magma_bug
-
-# already checked:
-# 1. crash_execs edge_execs seed_execs lavam_bug
-# non-bug 只要知道大概数量即可，不需要精确统计
-# waiting list:
-# 1. magma_bug
-
 import multiprocessing
 import time
 import os
@@ -18,6 +6,65 @@ import re
 import sys
 import copy
 import subprocess
+
+############################################### 0. 配置部分         ##################################################
+TOTAL_TIME = 24 # 单位小时
+SPLIT_UNIT = 1  # 每隔 1 小时
+SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) # 分隔数量
+# # 比较所有 fuzzers 的情况
+# FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_empty_path_k_2", "path_fuzzer_empty_path_k_4", "path_fuzzer_empty_path_k_8", \
+#     "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
+# 只比较 k=1 和 AFL++ 的情况
+# FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
+# TARGETS = ["php", "libsndfile", "libpng", "libtiff", "libxml2", "sqlite3", "lua"]
+FUZZERS = ["aflplusplus", "path_fuzzer_empty_path", "path_fuzzer_full_path", "cov_trans_fuzzer_empty_path", "cov_trans_fuzzer_full_path"]
+TARGETS = ["base64", "md5sum", "uniq", "who"]
+# 表明这个脚本所运行的文件夹
+# workdir = "cache"
+workdir = "workdir_1d_REPEAT4_LAVAM"
+# 重复次数
+REPEAT=4
+############################################### 1. 一些函数的定义    ##################################################
+# 定义获取子目录的函数
+def getsubdir(basedir):
+    subdirs = [d for d in os.listdir(basedir) 
+        if os.path.isdir(os.path.join(basedir, d)) and not d.startswith('.') ]
+    return sorted(subdirs)
+
+############################################### 2. 验证部分         ##################################################
+# 首先验证 workdir
+current_directory = os.getcwd()
+directory_name = os.path.basename(current_directory)
+assert(directory_name == workdir)
+
+# 验证 FUZZERS 是否都存在
+FUZZERS_real = getsubdir(current_directory)
+for fuzzer in FUZZERS:
+    assert(fuzzer in FUZZERS_real)
+
+# 验证 TARGETS 是否在所有 FUZZERS 里都存在
+TARGETS_list = []
+for FUZZER in FUZZERS:
+    TARGETS_list.append(getsubdir(FUZZER))
+
+for i in range(len(TARGETS_list)):
+    for target in TARGETS:
+        assert(target in TARGETS_list[i])
+
+############################################### 3. 读取所有 plot_data ##################################################
+
+############################################### 4. 绘制 crash_time   ##################################################
+
+############################################### 5. 绘制 crash_execs  ##################################################
+
+############################################### 6. 绘制 seed_time    ##################################################
+
+############################################### 7. 绘制 seed_execs   ##################################################
+
+############################################### 8. 绘制 edge_time    ##################################################
+
+############################################### 9. 绘制 edge_execs   ##################################################
+
 
 # 在 timeout 限制下来运行一个命令
 def sub_run(cmd, timeout):
@@ -119,26 +166,10 @@ def getEdges(put, program, filename, mapfile):
     return triggered_edges_set 
 
 """这个脚本应该在 cache 文件夹下运行"""
-# CHANGE: 配置，这里经常要改变 ============================== start
-TOTAL_TIME = 72 # 单位小时
-SPLIT_UNIT = 1 # 每隔 1 小时
-SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) # 分隔数量
-# ==============================================================
-FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
-# FUZZERS = ["aflplusplus", "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
-# FUZZERS = ["aflplusplus", "path_fuzzer_empty_path", "path_fuzzer_full_path", "cov_trans_fuzzer_empty_path", "cov_trans_fuzzer_full_path"]
-# ===================================================================
-REPEAT = 2 # 重复次数为 4
-# CHANGE: 配置，这里经常要改变 ============================== end
 
 # 用来记录已经完成的数据收集任务的数量
 finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
 
-# 定义获取子目录的函数
-def getsubdir(basedir):
-    subdirs = [d for d in os.listdir(basedir) 
-        if os.path.isdir(os.path.join(basedir, d)) and not d.startswith('.') ]
-    return sorted(subdirs)
 
 # 定义获取文件的函数
 def getfiles(basedir):
@@ -446,29 +477,7 @@ def worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
     return seed_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count)
 
 def main():
-    # CHANGE: 有时候当前文件夹不一定是 cache
-    # NOTE: 判断当前文件夹是不是名为 cache =======================
-    current_directory = os.getcwd()
-    directory_name = os.path.basename(current_directory)
-    assert(directory_name == "cache")
 
-    # NOTE: 断言：FUZZERS 中包含的 fuzzers，都出现在下面 =========
-    FUZZERS_real = getsubdir(current_directory)
-    for fuzzer in FUZZERS:
-        assert(fuzzer in FUZZERS_real)
-
-    # NOTE: 检验是否所有 FUZZERS 下的 TARGETS 都是一样的 =========
-    TARGETS_list = []
-    for FUZZER in FUZZERS:
-        TARGETS_list.append(getsubdir(FUZZER))
-
-    for i in range(len(TARGETS_list)):
-        assert(TARGETS_list[i] == TARGETS_list[0])
-
-    TARGETS = TARGETS_list[0]
-
-    # CHANGE 自定义 TARGETS 包含哪些
-    TARGETS = ["base64"]
 
     # NOTE: 检验是否所有 PROGRAMS 都一样 ==========================
     PROGRAMS_list = []
