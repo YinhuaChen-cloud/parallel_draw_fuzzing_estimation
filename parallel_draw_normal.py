@@ -31,8 +31,8 @@ REPEAT=4
 SPECIFIC_SUFFIX = ""
 # 决定绘制哪些图，不绘制哪些图
 draw_configure = {
-    "crash_time"     : True,
-    "crash_execs"    : False,
+    "crash_time"     : False,
+    "crash_execs"    : True,
     "seed_time"      : True,
     "seed_execs"     : True,
     "edge_time"      : True,
@@ -250,78 +250,10 @@ def draw_time(name: str, colname: str, accumulate: bool):
     print("============================= finish drawing " + name + "_time graph part =============================")
     sys.stdout.flush()
 
-############################################### 4. 绘制 crash_time   ##################################################
-if draw_configure["crash_time"]:
-    draw_time("crash", "saved_crashes", True)
-    # for PROGRAM in PROGRAMS:
-
-    #     plt.figure()  # 创建一个新的图形
-
-    #     for FUZZER in FUZZERS:
-    #         # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，获取 dfs
-    #         dfs = []
-    #         for result in results:
-    #             fuzz_result = result.get()
-    #             if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
-    #                 continue
-    #             dfs.append(fuzz_result[4])
-    #         assert(len(dfs) == REPEAT)
-    #         # CHANGE: 绘制其它图片，提取的数据要变化
-    #         # 处理 dfs 的数据，提取出 crash-time 数组，总共 REPEAT 个
-    #         slot_list = []
-    #         for df in dfs:
-    #             slot = [0] * SPLIT_NUM
-    #             # 按照相应单位，把 df 中的数据转移到数组上
-    #             # 先给 df 排序
-    #             df = df.sort_values("# relative_time")
-    #             # 遍历排序后的数据
-    #             for _, row in df.iterrows():
-    #                 time_s = int(row["# relative_time"])
-    #                 k = math.ceil(time_s / 60)
-    #                 if k < SPLIT_NUM:
-    #                     slot[k] = int(row["saved_crashes"])
-    #             # CHANGE: 绘制其它图片，对于 slot[i] == 0 的处理方式可能不一样
-    #             # 检查一下，看看是否有中间为 0 的情况，若有，补上
-    #             assert(slot[0] == 0)
-    #             for i in range(SPLIT_NUM):
-    #                 if i > 0 and slot[i] == 0:
-    #                     slot[i] = slot[i-1]
-    #             slot_list.append(slot)
-    #         assert(len(slot_list) == REPEAT)
-    #         # CHANGE: 绘制其它图片，对小数点的处理方式可能不一样
-    #         # 求平均，改成向上取整
-    #         slot_avg = [0] * SPLIT_NUM
-    #         for i in range(SPLIT_NUM):
-    #             for k in range(REPEAT):
-    #                 slot_avg[i] += slot_list[k][i]
-    #             slot_avg[i] /= REPEAT
-    #             slot_avg[i] = math.ceil(slot_avg[i])
-
-    #         # CHANGE: 绘制其它图片，这里的 x 轴可能不一样
-    #         # 开始绘图
-    #         x = [ (i/60) for i in range(SPLIT_NUM) ]
-    #         y = slot_avg
-    #         # 绘制图形
-    #         plt.plot(x, y, linestyle='-', label=FUZZER) 
-    #         # 添加图例
-    #         plt.legend()
-
-    #     # CHANGE: 绘制其它图片，这里的标题可能不一样
-    #     # 添加标题和标签
-    #     # 注意：edges 最好使用 min 作为横轴单位！！！
-    #     plt.title(PROGRAM + ' crash-time graph')
-    #     plt.xlabel('time(h)')
-    #     plt.ylabel('# crashes')
-    #     # 保存图形为文件: 每个 PROGRAM 画一张图
-    #     plt.savefig('crash_time_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
-    #     print("finish drawing crash_time_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
-    #     sys.stdout.flush()
-
-    # print("============================= finish drawing crash_time graph part =============================")
-    # sys.stdout.flush()
-
-############################################### 5. 绘制 crash_execs  ##################################################
-if draw_configure["crash_execs"]:
+# name: 决定 y 轴和图的名字
+# colname: 关心的那一列的列名
+# accumulate: 这一列是否属于 “积累” 属性？
+def draw_execs(name: str, colname: str, accumulate: bool):
     for PROGRAM in PROGRAMS:
 
         plt.figure()  # 创建一个新的图形
@@ -351,13 +283,14 @@ if draw_configure["crash_execs"]:
                     execs = int(row["total_execs"])
                     k = math.ceil(execs / execs_unit)
                     if k < SPLIT_NUM:
-                        slot[k] = int(row["saved_crashes"])
+                        slot[k] = int(row[colname])
                 # CHANGE: 绘制其它图片，对于 slot[i] == 0 的处理方式可能不一样
                 # 检查一下，看看是否有中间为 0 的情况，若有，补上
                 assert(slot[0] == 0)
-                for i in range(SPLIT_NUM):
-                    if i > 0 and slot[i] == 0:
-                        slot[i] = slot[i-1]
+                if accumulate:
+                    for i in range(SPLIT_NUM):
+                        if i > 0 and slot[i] == 0:
+                            slot[i] = slot[i-1]
                 slot_list.append(slot)
             assert(len(slot_list) == REPEAT)
             # CHANGE: 绘制其它图片，对小数点的处理方式可能不一样
@@ -381,16 +314,24 @@ if draw_configure["crash_execs"]:
         # CHANGE: 绘制其它图片，这里的标题可能不一样
         # 添加标题和标签
         # 注意：edges 最好使用 min 作为横轴单位！！！
-        plt.title(PROGRAM + ' crash-execs graph')
+        plt.title(PROGRAM + " " + name + '-execs graph')
         plt.xlabel('# execs')
-        plt.ylabel('# crashes')
+        plt.ylabel('# ' + name)
         # 保存图形为文件: 每个 PROGRAM 画一张图
-        plt.savefig('crash_execs_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
-        print("finish drawing crash_execs_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
+        plt.savefig(name + '_execs_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+        print("finish drawing " + name + "_execs_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
         sys.stdout.flush()
 
-    print("============================= finish drawing crash_execs graph part =============================")
+    print("============================= finish drawing " + name + "_execs graph part =============================")
     sys.stdout.flush()
+
+############################################### 4. 绘制 crash_time   ##################################################
+if draw_configure["crash_time"]:
+    draw_time("crash", "saved_crashes", True)
+
+############################################### 5. 绘制 crash_execs  ##################################################
+if draw_configure["crash_execs"]:
+    draw_execs("crash", "saved_crashes", True)
 
 ############################################### 6. 绘制 seed_time    ##################################################
 # corpus_count
