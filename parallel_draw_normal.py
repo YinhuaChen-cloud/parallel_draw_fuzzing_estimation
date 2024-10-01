@@ -32,9 +32,9 @@ SPECIFIC_SUFFIX = ""
 # 决定绘制哪些图，不绘制哪些图
 draw_configure = {
     "crash_time"     : False,
-    "crash_execs"    : True,
-    "seed_time"      : True,
-    "seed_execs"     : True,
+    "crash_execs"    : False,
+    "seed_time"      : False,
+    "seed_execs"     : False,
     "edge_time"      : True,
     "edge_execs"     : True,
     "Throughput_time": True,
@@ -334,9 +334,12 @@ if draw_configure["crash_execs"]:
     draw_execs("crash", "saved_crashes", True)
 
 ############################################### 6. 绘制 seed_time    ##################################################
-# corpus_count
+if draw_configure["seed_time"]:
+    draw_time("seed", "corpus_count", True)
 
 ############################################### 7. 绘制 seed_execs   ##################################################
+if draw_configure["seed_execs"]:
+    draw_execs("seed", "corpus_count", True)
 
 ############################################### 8. 绘制 edge_time    ##################################################
 
