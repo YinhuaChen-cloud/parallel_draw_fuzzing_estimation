@@ -32,7 +32,7 @@ SPECIFIC_SUFFIX = ""
 # 决定绘制哪些图，不绘制哪些图
 draw_configure = {
     "crash_time"     : False,
-    "crash_execs"    : True,
+    "crash_execs"    : False,
     "seed_time"      : True,
     "seed_execs"     : True,
     "edge_time"      : True,
@@ -210,7 +210,7 @@ if draw_configure["crash_time"]:
                 # 检查一下，看看是否有中间为 0 的情况，若有，补上
                 assert(slot[0] == 0)
                 for i in range(SPLIT_NUM):
-                    if i > 1 and slot[i] == 0:
+                    if i > 0 and slot[i] == 0:
                         slot[i] = slot[i-1]
                 slot_list.append(slot)
             assert(len(slot_list) == REPEAT)
@@ -247,77 +247,76 @@ if draw_configure["crash_time"]:
     sys.stdout.flush()
 
 ############################################### 5. 绘制 crash_execs  ##################################################
-for PROGRAM in PROGRAMS:
+if draw_configure["crash_execs"]:
+    for PROGRAM in PROGRAMS:
 
-    plt.figure()  # 创建一个新的图形
-    # CHANGE: 获取这个程序的 max_execs
-    max_execs = max_execs_dict[PROGRAM]
-    SPLIT_UNIT = (max_execs / SPLIT_NUM)
+        plt.figure()  # 创建一个新的图形
+        # 获取这个程序的 max_execs，计算 execs_unit
+        max_execs = max_execs_dict[PROGRAM]
+        execs_unit = (max_execs / int(TOTAL_TIME / SPLIT_UNIT))
 
-    for FUZZER in FUZZERS:
-        # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，获取 dfs
-        dfs = []
-        for result in results:
-            fuzz_result = result.get()
-            if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
-                continue
-            dfs.append(fuzz_result[4])
-        assert(len(dfs) == REPEAT)
-        # CHANGE: 绘制其它图片，提取的数据要变化
-        # 处理 dfs 的数据，提取出 crash-execs 数组，总共 REPEAT 个
-        slot_list = []
-        for df in dfs:
-            slot = [0] * SPLIT_NUM
-            # 按照相应单位，把 df 中的数据转移到数组上
-            # 先给 df 排序
-            df = df.sort_values("total_execs")
-            print(df)
-            exit(0)
-            # 遍历排序后的数据
-            for _, row in df.iterrows():
-                time_s = int(row["# relative_time"])
-                k = math.ceil(time_s / 60)
-                if k < SPLIT_NUM:
-                    slot[k] = int(row["saved_crashes"])
-            # CHANGE: 绘制其它图片，对于 slot[i] == 0 的处理方式可能不一样
-            # 检查一下，看看是否有中间为 0 的情况，若有，补上
-            assert(slot[0] == 0)
+        for FUZZER in FUZZERS:
+            # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，获取 dfs
+            dfs = []
+            for result in results:
+                fuzz_result = result.get()
+                if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
+                    continue
+                dfs.append(fuzz_result[4])
+            assert(len(dfs) == REPEAT)
+            # CHANGE: 绘制其它图片，提取的数据要变化
+            # 处理 dfs 的数据，提取出 crash-execs 数组，总共 REPEAT 个
+            slot_list = []
+            for df in dfs:
+                slot = [0] * SPLIT_NUM
+                # 按照相应单位，把 df 中的数据转移到数组上
+                # 先给 df 排序
+                df = df.sort_values("total_execs")
+                # 遍历排序后的数据
+                for _, row in df.iterrows():
+                    execs = int(row["total_execs"])
+                    k = math.ceil(execs / execs_unit)
+                    if k < SPLIT_NUM:
+                        slot[k] = int(row["saved_crashes"])
+                # CHANGE: 绘制其它图片，对于 slot[i] == 0 的处理方式可能不一样
+                # 检查一下，看看是否有中间为 0 的情况，若有，补上
+                assert(slot[0] == 0)
+                for i in range(SPLIT_NUM):
+                    if i > 0 and slot[i] == 0:
+                        slot[i] = slot[i-1]
+                slot_list.append(slot)
+            assert(len(slot_list) == REPEAT)
+            # CHANGE: 绘制其它图片，对小数点的处理方式可能不一样
+            # 求平均，改成向上取整
+            slot_avg = [0] * SPLIT_NUM
             for i in range(SPLIT_NUM):
-                if i > 1 and slot[i] == 0:
-                    slot[i] = slot[i-1]
-            slot_list.append(slot)
-        assert(len(slot_list) == REPEAT)
-        # CHANGE: 绘制其它图片，对小数点的处理方式可能不一样
-        # 求平均，改成向上取整
-        slot_avg = [0] * SPLIT_NUM
-        for i in range(SPLIT_NUM):
-            for k in range(REPEAT):
-                slot_avg[i] += slot_list[k][i]
-            slot_avg[i] /= REPEAT
-            slot_avg[i] = math.ceil(slot_avg[i])
+                for k in range(REPEAT):
+                    slot_avg[i] += slot_list[k][i]
+                slot_avg[i] /= REPEAT
+                slot_avg[i] = math.ceil(slot_avg[i])
 
-        # CHANGE: 绘制其它图片，这里的 x 轴可能不一样
-        # 开始绘图
-        x = [ (i/60) for i in range(SPLIT_NUM) ]
-        y = slot_avg
-        # 绘制图形
-        plt.plot(x, y, linestyle='-', label=FUZZER) 
-        # 添加图例
-        plt.legend()
+            # CHANGE: 绘制其它图片，这里的 x 轴可能不一样
+            # 开始绘图
+            x = [ i*execs_unit for i in range(SPLIT_NUM) ]
+            y = slot_avg
+            # 绘制图形
+            plt.plot(x, y, linestyle='-', label=FUZZER) 
+            # 添加图例
+            plt.legend()
 
-    # CHANGE: 绘制其它图片，这里的标题可能不一样
-    # 添加标题和标签
-    # 注意：edges 最好使用 min 作为横轴单位！！！
-    plt.title(PROGRAM + ' crash-time graph')
-    plt.xlabel('time(h)')
-    plt.ylabel('# crashes')
-    # 保存图形为文件: 每个 PROGRAM 画一张图
-    plt.savefig('crash_time_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
-    print("finish drawing crash_time_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
+        # CHANGE: 绘制其它图片，这里的标题可能不一样
+        # 添加标题和标签
+        # 注意：edges 最好使用 min 作为横轴单位！！！
+        plt.title(PROGRAM + ' crash-execs graph')
+        plt.xlabel('# execs')
+        plt.ylabel('# crashes')
+        # 保存图形为文件: 每个 PROGRAM 画一张图
+        plt.savefig('crash_execs_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+        print("finish drawing crash_execs_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
+        sys.stdout.flush()
+
+    print("============================= finish drawing crash_execs graph part =============================")
     sys.stdout.flush()
-
-print("============================= finish drawing crash_time graph part =============================")
-sys.stdout.flush()
 
 ############################################### 6. 绘制 seed_time    ##################################################
 
