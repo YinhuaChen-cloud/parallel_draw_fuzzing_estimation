@@ -167,13 +167,13 @@ for PROGRAM in PROGRAMS:
         for df in dfs:
             # 只有时间长度达到目标的统计数据才会被加入 max_execs_list，这样可以有效防止死循环的 fuzzing 影响全局
             # TODO: 这个东西下次有空再弄
-            # if (math.ceil(df["# relative_time"].max() / 60) >= SPLIT_NUM-1):
-            #     max_execs_list.append(df["total_execs"].max())
-            max_execs_list.append(df["total_execs"].max())
+            if (math.ceil(df["# relative_time"].max() / 60) >= SPLIT_NUM-1):
+                max_execs_list.append(df["total_execs"].max())
+            # max_execs_list.append(df["total_execs"].max())
     # 此时，max_execs_list 的长度 <= REPEAT x len(FUZZERS)
     # TODO: 下次有空再弄
-    # assert(len(max_execs_list) <= len(FUZZERS) * REPEAT)
-    assert(len(max_execs_list) == len(FUZZERS) * REPEAT)
+    assert(len(max_execs_list) <= len(FUZZERS) * REPEAT)
+    # assert(len(max_execs_list) == len(FUZZERS) * REPEAT)
     # 这个就是这个程序有效的最大的 execs (最小的 max_execs)
     max_execs = min(max_execs_list)
     max_execs_dict[PROGRAM] = max_execs
@@ -247,6 +247,8 @@ def draw_time(name: str, colname: str, accumulate: bool):
         plt.savefig(name + '_time_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
         print("finish drawing " + name + "_time_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
         sys.stdout.flush()
+
+        plt.close()  # 关闭图形
 
     print("============================= finish drawing " + name + "_time graph part =============================")
     sys.stdout.flush()
@@ -322,6 +324,8 @@ def draw_execs(name: str, colname: str, accumulate: bool):
         plt.savefig(name + '_execs_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
         print("finish drawing " + name + "_execs_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
         sys.stdout.flush()
+
+        plt.close()  # 关闭图形
 
     print("============================= finish drawing " + name + "_execs graph part =============================")
     sys.stdout.flush()
