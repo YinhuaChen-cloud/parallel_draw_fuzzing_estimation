@@ -293,7 +293,6 @@ for result in results:
     result.wait()
 
 ############################################### 额外：统计各程序 max_execs   ##################################################
-# TODO: 不如统计 execs_unit
 # 每个 PROGRAM 取它最小的 max_execs
 max_execs_dict = {}
 for PROGRAM in PROGRAMS:
@@ -311,15 +310,14 @@ for PROGRAM in PROGRAMS:
         # 从 dfs 中获取 max_execs
         for df in dfs:
             # 只有时间长度达到目标的统计数据才会被加入 max_execs_list，这样可以有效防止死循环的 fuzzing 影响全局
-            # TODO: 这个东西下次有空再弄
             if (math.ceil(df["# relative_time"].max() / 60) >= SPLIT_NUM-1):
                 max_execs_list.append(df["total_execs"].max())
             # max_execs_list.append(df["total_execs"].max())
     # 此时，max_execs_list 的长度 <= REPEAT x len(FUZZERS)
-    # TODO: 下次有空再弄
     assert(len(max_execs_list) <= len(FUZZERS) * REPEAT)
     # assert(len(max_execs_list) == len(FUZZERS) * REPEAT)
     # 这个就是这个程序有效的最大的 execs (最小的 max_execs)
+    assert(len(max_execs_list) > 0)
     max_execs = min(max_execs_list)
     max_execs_dict[PROGRAM] = max_execs
 
@@ -351,15 +349,16 @@ for PROGRAM in PROGRAMS:
             df = df.sort_values("total_execs")
             # 遍历排序后的数据，把 bug 这个属性放进去
             df['bug'] = None
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 time = int(row["# relative_time"])
-                k = math.ceil(time / 5)
-                row["bug"] = theSlot[k]
+                k = math.ceil(time / 60)
+                if k < SPLIT_NUM:
+                    df.loc[idx, "bug"] = theSlot[k]
 
             for _, row in df.iterrows():
                 execs = int(row["total_execs"])
                 k = math.ceil(execs / execs_unit)
-                if k < SPLIT_NUM:
+                if k < SPLIT_NUM and row["bug"]:
                     slot[k] = int(row["bug"])
             # CHANGE: 绘制其它图片，对于 slot[i] == 0 的处理方式可能不一样
             # 检查一下，看看是否有中间为 0 的情况，若有，补上
@@ -400,7 +399,7 @@ for PROGRAM in PROGRAMS:
 
     plt.close()  # 关闭图形
 
-print("============================= finish drawing " + name + "_execs graph part =============================")
+print("============================= finish drawing bug_execs graph part =============================")
 sys.stdout.flush()
 
 # 要结束了

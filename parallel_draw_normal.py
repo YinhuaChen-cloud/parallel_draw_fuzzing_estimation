@@ -31,13 +31,13 @@ REPEAT=2
 SPECIFIC_SUFFIX = "_all"
 # 决定绘制哪些图，不绘制哪些图
 draw_configure = {
-    "crash_time"     : True,
+    "crash_time"     : False,
     "crash_execs"    : True,
-    "seed_time"      : True,
+    "seed_time"      : False,
     "seed_execs"     : True,
-    "edge_time"      : True,
+    "edge_time"      : False,
     "edge_execs"     : True,
-    "throughput_time": True,
+    "throughput_time": False,
 }
 
 ############################################### 1. 一些函数的定义    ##################################################
@@ -148,7 +148,6 @@ for result in results:
     result.wait()
 
 ############################################### 额外：统计各程序 max_execs   ##################################################
-# TODO: 不如统计 execs_unit
 # 每个 PROGRAM 取它最小的 max_execs
 max_execs_dict = {}
 for PROGRAM in PROGRAMS:
@@ -166,15 +165,14 @@ for PROGRAM in PROGRAMS:
         # 从 dfs 中获取 max_execs
         for df in dfs:
             # 只有时间长度达到目标的统计数据才会被加入 max_execs_list，这样可以有效防止死循环的 fuzzing 影响全局
-            # TODO: 这个东西下次有空再弄
             if (math.ceil(df["# relative_time"].max() / 60) >= SPLIT_NUM-1):
                 max_execs_list.append(df["total_execs"].max())
             # max_execs_list.append(df["total_execs"].max())
     # 此时，max_execs_list 的长度 <= REPEAT x len(FUZZERS)
-    # TODO: 下次有空再弄
     assert(len(max_execs_list) <= len(FUZZERS) * REPEAT)
     # assert(len(max_execs_list) == len(FUZZERS) * REPEAT)
     # 这个就是这个程序有效的最大的 execs (最小的 max_execs)
+    assert(len(max_execs_list) > 0)
     max_execs = min(max_execs_list)
     max_execs_dict[PROGRAM] = max_execs
 
