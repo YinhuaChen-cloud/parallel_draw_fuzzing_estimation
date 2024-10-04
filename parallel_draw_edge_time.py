@@ -1,15 +1,3 @@
-# already checked:
-# 1. crash_time seed_time edge_time lavam_bug_time
-# non-bug 只要知道大概数量即可，不需要精确统计
-# waiting list:
-# 1. magma_bug
-
-# already checked:
-# 1. crash_execs edge_execs seed_execs lavam_bug
-# non-bug 只要知道大概数量即可，不需要精确统计
-# waiting list:
-# 1. magma_bug
-
 import multiprocessing
 import time
 import os
@@ -18,6 +6,38 @@ import re
 import sys
 import copy
 import subprocess
+
+############################################### 0. 配置部分         ##################################################
+TOTAL_TIME = 60 * 60 # 单位分钟
+SPLIT_UNIT = 1  # 每隔 1 分钟
+SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
+# # 比较所有 fuzzers 的情况
+# FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_empty_path_k_2", "path_fuzzer_empty_path_k_4", "path_fuzzer_empty_path_k_8", \
+    # "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
+# 只比较 k=1 和 AFL++ 的情况
+FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
+TARGETS = ["php", "libsndfile", "libpng", "libtiff", "libxml2", "sqlite3", "lua"]
+# FUZZERS = ["aflplusplus", "path_fuzzer_empty_path", "path_fuzzer_full_path", "cov_trans_fuzzer_empty_path", "cov_trans_fuzzer_full_path"]
+# TARGETS = ["base64", "md5sum", "uniq", "who"]
+# 表明这个脚本所运行的文件夹
+WORKDIR = "cache"
+# WORKDIR = "workdir_1d_REPEAT4_LAVAM"
+# 重复次数
+REPEAT=2
+# 这次绘图命名的特殊后缀，比如 _empty or _full 之类的
+SPECIFIC_SUFFIX = "_only1"
+# 决定绘制哪些图，不绘制哪些图
+draw_configure = {
+    "crash_time"     : True,
+    "crash_execs"    : True,
+    "seed_time"      : True,
+    "seed_execs"     : True,
+    "edge_time"      : True,
+    "edge_execs"     : True,
+    "throughput_time": True,
+}
+
+############################################### 1. 一些函数的定义    ##################################################
 
 # 在 timeout 限制下来运行一个命令
 def sub_run(cmd, timeout):
@@ -219,274 +239,49 @@ def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
         sys.stdout.flush()
     return (FUZZER, TARGET, thePROGRAM, TIME, edge_time_slot)
 
-"""用来收集 non_bug_crash_time 数据的工作函数"""
-def non_bug_crash_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    non_bug_crash_time_slot = [0] * SPLIT_NUM
-
-    crashdir = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/crashes/"
-    # 无论何时，PUT 都是同一个
-    put = "aflplusplus" + "/" + TARGET + "/" + thePROGRAM + "/0/afl/" + thePROGRAM
-
-    # 先获取 crashes 里的 bugs
-    files = getfiles(crashdir)
-    print("PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + ", len(crash_files) = " + str(len(files)))
-    sys.stdout.flush()
-
-    for crash_file in files:
-        matches = re.findall(r"time:(\d+)", crash_file)
-        assert(len(matches) < 2)
-        if matches:
-            # NOTE: 时间转换
-            crash_time = convert_Time(int(matches[0]))
-
-            assert(SPLIT_NUM == TOTAL_TIME)
-            if crash_time < SPLIT_NUM:
-                # 看看这个文件是否触发 validated_bugs
-                cmd = [put]            
-                assert(bug_program_args[thePROGRAM] is not None)
-                if bug_program_args[thePROGRAM]:
-                    cmd.append(bug_program_args[thePROGRAM])
-                cmd.append(crashdir + crash_file)
-                # 6 秒限制超时，运行该命令
-                r = sub_run(cmd, 6)
-                # 如果没有输出，下一个文件
-                if r is None:
-                    continue
-                # 如果有输出，那么检查是否 trigger 了注入的 bugs
-                out = r.stdout.split(b'\n')
-                # 用来表示这个 crash_file 是否触发已知 bug 的 FLAG
-                iscrash = False
-                for line in out:
-                    # 如果 trigger 了 bugs，那么存入 bug_time_dict 字典，同时做些处理
-                    if line.startswith(b"Successfully triggered bug"):
-                        print("%s in: %s" % (line, crash_file))
-                        iscrash = True
-
-                if False == iscrash:
-                    non_bug_crash_time_slot[crash_time] += 1
-                
-    # 先从增量数组转为存量数组
-    for i in range(SPLIT_NUM-1):
-        non_bug_crash_time_slot[i+1] += non_bug_crash_time_slot[i]
-
-    global finished_tasks
-    with finished_tasks.get_lock():
-        finished_tasks.value += 1
-        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{thePROGRAM}-{TIME} data collect")
-        sys.stdout.flush()
-    return (FUZZER, TARGET, thePROGRAM, TIME, non_bug_crash_time_slot)
-
-
-"""用来收集 magma bug_time 数据的工作函数"""
-def magma_bug_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    pass
-
-"""用来收集 lavam bug_time 数据的工作函数"""
-def lavam_bug_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    bug_time_slot = [0] * SPLIT_NUM
-    bug_time_dict = {}
-    crashdir = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/crashes/"
-    queuedir = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/queue/"
-    # 无论何时，PUT 都是同一个
-    put = "aflplusplus" + "/" + TARGET + "/" + thePROGRAM + "/0/afl/" + thePROGRAM
-
-    # 先获取 crashes 里的 bugs
-    files = getfiles(crashdir)
-    print("PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + ", len(crash_files) = " + str(len(files)))
-    sys.stdout.flush()
-
-    for crash_file in files:
-        matches = re.findall(r"time:(\d+)", crash_file)
-        assert(len(matches) < 2)
-        if matches:
-            # NOTE: 时间转换
-            crash_time = convert_Time(int(matches[0]))
-
-            assert(SPLIT_NUM == TOTAL_TIME)
-            if crash_time < SPLIT_NUM:
-                # 看看这个文件是否触发 validated_bugs
-                cmd = [put]            
-                assert(bug_program_args[thePROGRAM] is not None)
-                if bug_program_args[thePROGRAM]:
-                    cmd.append(bug_program_args[thePROGRAM])
-                cmd.append(crashdir + crash_file)
-                # 6 秒限制超时，运行该命令
-                r = sub_run(cmd, 6)
-                # 如果没有输出，下一个文件
-                if r is None:
-                    continue
-                # 如果有输出，那么检查是否 trigger 了注入的 bugs
-                out = r.stdout.split(b'\n')
-                for line in out:
-                    # 如果 trigger 了 bugs，那么存入 bug_time_dict 字典，同时做些处理
-                    if line.startswith(b"Successfully triggered bug"):
-                        dot = line.split(b',')[0]
-                        cur_id = int(dot[27:])
-                        if cur_id not in bug_time_dict:                        
-                            print("  Trigger %5d in: %s" % (cur_id, crash_file))
-                            bug_time_dict[cur_id] = crash_time
-                            bug_time_slot[crash_time] += 1
-
-    # 再获取 seeds 里的 bugs
-    files = getfiles(queuedir)
-    print("PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + ", len(seed_files) = " + str(len(files)))
-    sys.stdout.flush()
-
-    for seed_file in files:
-        matches = re.findall(r"time:(\d+)", seed_file)
-        assert(len(matches) < 2)
-        if matches:
-
-            # 如果是 +pat 种子，那么跳过，因为它大概率不触发新 bugs，否则不会被列入 pat+ 池子里
-            pat_matches = re.findall(r"\+pat", seed_file)
-            assert(len(pat_matches) < 2)
-            if pat_matches:
-                continue
-
-            # NOTE: 时间转换
-            seed_time = convert_Time(int(matches[0]))
-
-            assert(SPLIT_NUM == TOTAL_TIME)
-            if seed_time < SPLIT_NUM:
-                # 看看这个文件是否触发 validated_bugs
-                cmd = [put]            
-                assert(bug_program_args[thePROGRAM] is not None)
-                if bug_program_args[thePROGRAM]:
-                    cmd.append(bug_program_args[thePROGRAM])
-                cmd.append(queuedir + seed_file)
-                # 6 秒限制超时，运行该命令
-                r = sub_run(cmd, 6)
-                # 如果没有输出，下一个文件
-                if r is None:
-                    continue
-                # 如果有输出，那么检查是否 trigger 了注入的 bugs
-                out = r.stdout.split(b'\n')
-                for line in out:
-                    # 如果 trigger 了 bugs，那么存入 bug_time_dict 字典，同时做些处理
-                    if line.startswith(b"Successfully triggered bug"):
-                        dot = line.split(b',')[0]
-                        cur_id = int(dot[27:])
-                        if cur_id not in bug_time_dict:                        
-                            print("  Trigger %5d in: %s" % (cur_id, seed_file))
-                            bug_time_dict[cur_id] = seed_time
-                            bug_time_slot[seed_time] += 1
-                        # 如果之前的找到的 bug 时间更晚，那么做个更新
-                        if bug_time_dict[cur_id] > seed_time:                        
-                            print("  early Trigger %5d in: %s" % (cur_id, seed_file))
-                            bug_time_slot[bug_time_dict[cur_id]] -= 1
-                            bug_time_dict[cur_id] = seed_time
-                            bug_time_slot[seed_time] += 1
-                
-    # 先从增量数组转为存量数组
-    for i in range(SPLIT_NUM-1):
-        bug_time_slot[i+1] += bug_time_slot[i]
-
-    global finished_tasks
-    with finished_tasks.get_lock():
-        finished_tasks.value += 1
-        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{thePROGRAM}-{TIME} data collect")
-        sys.stdout.flush()
-    return (FUZZER, TARGET, thePROGRAM, TIME, bug_time_slot)
-
-"""用来收集 seed_time 数据的工作函数"""
-def seed_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    seed_time_slot = [0] * SPLIT_NUM
-    path = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/queue/"
-    files = getfiles(path)
-    for seed_file in files:
-        matches = re.findall(r"time:(\d+)", seed_file)
-        assert(len(matches) < 2)
-        if matches:
-
-            seed_time = convert_Time(int(matches[0]))
-
-            # 如果时间戳没有超过配置最大值，那么记录数据
-            if seed_time < SPLIT_NUM:
-                seed_time_slot[seed_time] += 1
-    # 从增量数组转为存量数组
-    for i in range(SPLIT_NUM-1):
-        seed_time_slot[i+1] += seed_time_slot[i]
-    # 打印表示目前任务已完成(需要加锁)
-    global finished_tasks
-    with finished_tasks.get_lock():
-        finished_tasks.value += 1
-        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{thePROGRAM}-{TIME} data collect")
-        sys.stdout.flush()
-    return (FUZZER, TARGET, thePROGRAM, TIME, seed_time_slot)
-
-"""用来收集 crash_time 数据的工作函数"""
-def crash_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    crash_time_slot = [0] * SPLIT_NUM
-    path = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/crashes/"
-    files = getfiles(path)
-    for crash_file in files:
-        matches = re.findall(r"time:(\d+)", crash_file)
-        assert(len(matches) < 2)
-        if matches:
-
-            crash_time = convert_Time(int(matches[0]))
-
-            # 如果时间戳没有超过配置最大值，那么记录数据
-            if crash_time < SPLIT_NUM:
-                crash_time_slot[crash_time] += 1
-    # 从增量数组转为存量数组
-    for i in range(SPLIT_NUM-1):
-        crash_time_slot[i+1] += crash_time_slot[i]
-    # 打印表示目前任务已完成(需要加锁)
-    global finished_tasks
-    with finished_tasks.get_lock():
-        finished_tasks.value += 1
-        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{thePROGRAM}-{TIME} data collect")
-        sys.stdout.flush()
-    return (FUZZER, TARGET, thePROGRAM, TIME, crash_time_slot)
-
 # CHANGE: 这里根据不同的数据收集任务需要改变
 """总工作函数"""
 def worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
     return seed_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count)
 
 def main():
-    # CHANGE: 有时候当前文件夹不一定是 cache
-    # NOTE: 判断当前文件夹是不是名为 cache =======================
+    # NOTE: 判断当前文件夹是否正确 =======================
     current_directory = os.getcwd()
     directory_name = os.path.basename(current_directory)
-    assert(directory_name == "cache")
+    assert(directory_name == WORKDIR)
 
     # NOTE: 断言：FUZZERS 中包含的 fuzzers，都出现在下面 =========
     FUZZERS_real = getsubdir(current_directory)
     for fuzzer in FUZZERS:
         assert(fuzzer in FUZZERS_real)
 
-    # NOTE: 检验是否所有 FUZZERS 下的 TARGETS 都是一样的 =========
+    # NOTE: 检验是否所有 FUZZERS 都包含我们要绘制的那些 TARGETS
+    # 先获取所有 FUZZERS 文件下的所有 TARGETS
     TARGETS_list = []
     for FUZZER in FUZZERS:
         TARGETS_list.append(getsubdir(FUZZER))
 
     for i in range(len(TARGETS_list)):
-        assert(TARGETS_list[i] == TARGETS_list[0])
+        for target in TARGETS:
+            assert(target in TARGETS_list[i])
 
-    TARGETS = TARGETS_list[0]
-
-    # CHANGE 自定义 TARGETS 包含哪些
-    TARGETS = ["base64"]
-
-    # NOTE: 检验是否所有 PROGRAMS 都一样 ==========================
+    # NOTE: 获取所有 PROGRAMS，同时检验是否所有 PROGRAMS 都一样 ==========================
+    # 获取所有 FUZZERS 的 PROGRAMS
     PROGRAMS_list = []
-
     for FUZZER in FUZZERS:
-        the_PROGRAMS = []
+        its_PROGRAMS = []
         for TARGET in TARGETS:
             path = FUZZER + "/" + TARGET
-            the_PROGRAMS.append(getsubdir(path))
-        the_PROGRAMS = [ item for sublist in the_PROGRAMS for item in sublist ]
-        PROGRAMS_list.append(the_PROGRAMS)
+            its_PROGRAMS.append(getsubdir(path))
+        its_PROGRAMS = [ item for sublist in the_PROGRAMS for item in sublist ]
+        PROGRAMS_list.append(its_PROGRAMS)
 
     for i in range(len(PROGRAMS_list)):
         assert(PROGRAMS_list[i] == PROGRAMS_list[0])
 
     PROGRAMS = PROGRAMS_list[0]
 
-    # NOTE: 为多线程收集数据做的一些准备
+    # NOTE: 为多线程收集数据做的一些准备 ===================================================
     # 获取 CPU cores 总数
     num_cores = multiprocessing.cpu_count()
     print(f'CPU 核心数量: {num_cores}')
@@ -501,7 +296,6 @@ def main():
     # 任务数计数器，也可以叫任务序号计数器
     task_count = 0
     for PROGRAM in PROGRAMS:
-
         for FUZZER in FUZZERS:
             for TARGET in TARGETS:
 
