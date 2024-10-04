@@ -164,7 +164,7 @@ def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
             # 如果是 +pat 种子，那么跳过，因为它必不增加 edge-cov 
             pat_matches = re.findall(r"\+pat", crash_file)
             assert(len(pat_matches) < 2)
-            if pat_matches and !(plusPAT):
+            if pat_matches and (not plusPAT):
                 continue
 
             crash_time = ms_to_min(int(matches[0]))
@@ -187,7 +187,7 @@ def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
             # 如果是 +pat 种子，那么跳过，因为它必不增加 edge-cov 
             pat_matches = re.findall(r"\+pat", seed_file)
             assert(len(pat_matches) < 2)
-            if pat_matches and !(plusPAT):
+            if pat_matches and (not plusPAT):
                 continue
 
             seed_time = ms_to_min(int(matches[0]))
