@@ -27,9 +27,9 @@ WORKDIR = "cache"
 # 重复次数
 REPEAT=2
 # 这次绘图命名的特殊后缀，比如 _empty or _full 之类的
-SPECIFIC_SUFFIX = "_only1"
+SPECIFIC_SUFFIX = "_PAT"
 # 是否把 "+pat" 种子计入 edge_time 绘图中
-plusPAT = False
+plusPAT = True
 ############################################### 1. 一些函数的定义    ##################################################
 
 # 在 timeout 限制下来运行一个命令
@@ -115,13 +115,13 @@ def getEdges(put, program, filename, mapfile, task_count):
             command.append(arg)
 
     if program == "tiffcp":
-        tmpcmd = ["cp", filename, "deadbeef_bug"]
+        tmpcmd = ["cp", filename, "deadbeef_bug." + str(task_count)]
         try:
             result = subprocess.run(tmpcmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=5)
         except:
             print("Unexpected error at tiffcp: " + filename)
             assert(0)
-        command[12] = "deadbeef_bug"
+        command[12] = tmpcmd[2]
 
     try: 
         result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False, timeout=5)
