@@ -63,23 +63,20 @@ def sub_run(cmd, timeout):
 # 这里的 program_args 可以是为了找 edges，也可以是为了找 bugs
 edge_program_args = {
         # lAVAM
-        "base64": "-d",        
-        "md5sum": "-c",        
-        "uniq": "",        
-        "who": "",        
+        "base64": ["-d", "INPUT_FILE"],        
+        "md5sum": ["-c", "INPUT_FILE"],        
+        "uniq": ["INPUT_FILE"],        
+        "who": ["INPUT_FILE"],        
         # MAGMA
-        "lua": "",
-        "exif": "",
-        # error while loading shared libraries: libFLAC.so.8: cannot open shared object file: No such file or directory
-        "sndfile_fuzzer": "",
-        "libpng_read_fuzzer": "",        
-        # error while loading shared libraries: libjpeg.so.8: cannot open shared object file: No such file or directory
-        "tiff_read_rgba_fuzzer": "",
-        # error while loading shared libraries: libjpeg.so.8: cannot open shared object file: No such file or directory
-        "tiffcp": "-M",
-        "libxml2_xml_read_memory_fuzzer": "",
-        "xmllint": "--valid --oldxml10 --push --memory",
-        "sqlite3_fuzz": "",
+        "lua": ["INPUT_FILE"],
+        "exif": ["INPUT_FILE"],
+        "sndfile_fuzzer": ["INPUT_FILE"],
+        "libpng_read_fuzzer": ["INPUT_FILE"],        
+        "tiff_read_rgba_fuzzer": ["INPUT_FILE"],
+        "tiffcp": ["-M", "INPUT_FILE", "tmp.out"],
+        "libxml2_xml_read_memory_fuzzer": ["INPUT_FILE"],
+        "xmllint": ["--valid", "--oldxml10", "--push", "--memory", "INPUT_FILE"],
+        "sqlite3_fuzz": ["INPUT_FILE"],
         # TODO: 后续再加三个
 }
 
@@ -106,12 +103,13 @@ def getEdges(put, program, filename, mapfile):
     triggered_edges_set = {}
     command = copy.deepcopy(base_command)
     command[-1] = put
-    assert(edge_program_args[program] is not None)
-    # TODO: 我现在在收集 MAGMA benchmarks 的运行命令，请等待，过会儿回来
-    if edge_program_args[program]:
-        command.append(edge_program_args[program])
-    command.append(filename)
     command[5] = mapfile
+    assert(edge_program_args[program] is not None)
+    for arg in edge_program_args[program]:
+        if arg == "INPUT_FILE":
+            command.append(filename)
+        else:
+            command.append(arg)
 
     result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     # 打印命令的标准输出
@@ -186,14 +184,13 @@ def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
         matches = re.findall(r"time:(\d+)", seed_file)
         assert(len(matches) < 2)
         if matches:
-
             # 如果是 +pat 种子，那么跳过，因为它必不增加 edge-cov 
             pat_matches = re.findall(r"\+pat", seed_file)
             assert(len(pat_matches) < 2)
-            if pat_matches:
+            if pat_matches and !(plusPAT):
                 continue
 
-            seed_time = convert_Time(int(matches[0]))
+            seed_time = ms_to_min(int(matches[0]))
 
             if seed_time < SPLIT_NUM:
                 # NOTE: 计算这个单独文件触发的边缘字典
@@ -317,15 +314,15 @@ def main():
                 result_time_slot[count] = fuzz_result[4]
                 count += 1
             assert(count == REPEAT)
-            # 求平均，四舍五入
+            # 求平均，向上取整
             result_time_slot_avg = [0] * SPLIT_NUM
             for i in range(SPLIT_NUM):
                 for k in range(REPEAT):
                     result_time_slot_avg[i] += result_time_slot[k][i]
                 result_time_slot_avg[i] /= REPEAT
-                result_time_slot_avg[i] = round(result_time_slot_avg[i])
+                result_time_slot_avg[i] = math.ceil(result_time_slot_avg[i])
             # 开始绘图  CHANGE:
-            x = [ (i+1) for i in range(SPLIT_NUM) ]
+            x = [ (i/60) for i in range(SPLIT_NUM) ]
             y = result_time_slot_avg
             # 绘制图形
             plt.plot(x, y, linestyle='-', label=FUZZER) 
@@ -334,11 +331,15 @@ def main():
 
         # 添加标题和标签 CHANGE:
         # 注意：edges 最好使用 min 作为横轴单位！！！
-        plt.title(PROGRAM + ' seed-time graph')
+        plt.title(PROGRAM + ' edge-time graph')
         plt.xlabel('time(h)')
-        plt.ylabel('# seeds')
+        plt.ylabel('# edges')
         # 保存图形为文件: 每个 PROGRAM 画一张图
-        plt.savefig('seed_time_' + PROGRAM + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+        plt.savefig('edge_time_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+        print("finish drawing edge_time_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
+        sys.stdout.flush()
+
+        plt.close()  # 关闭图形
 
     print("total " + str(len(results)) + " fuzzing result collect tasks")
     sys.stdout.flush()
