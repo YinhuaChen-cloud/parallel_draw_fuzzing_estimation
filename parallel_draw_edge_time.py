@@ -114,6 +114,15 @@ def getEdges(put, program, filename, mapfile, task_count):
         else:
             command.append(arg)
 
+    if program == "tiffcp":
+        tmpcmd = ["cp", filename, "deadbeef_bug"]
+        try:
+            result = subprocess.run(tmpcmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=5)
+        except:
+            print("Unexpected error at tiffcp: " + filename)
+            assert(0)
+        command[12] = "deadbeef_bug"
+
     try: 
         result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False, timeout=5)
     except subprocess.TimeoutExpired:
