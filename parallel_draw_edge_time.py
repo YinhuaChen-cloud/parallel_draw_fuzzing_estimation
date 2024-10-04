@@ -6,6 +6,7 @@ import re
 import sys
 import copy
 import subprocess
+import math
 
 ############################################### 0. 配置部分         ##################################################
 TOTAL_TIME = 60 * 60 # 单位分钟
@@ -26,17 +27,8 @@ WORKDIR = "cache"
 REPEAT=2
 # 这次绘图命名的特殊后缀，比如 _empty or _full 之类的
 SPECIFIC_SUFFIX = "_only1"
-# 决定绘制哪些图，不绘制哪些图
-draw_configure = {
-    "crash_time"     : True,
-    "crash_execs"    : True,
-    "seed_time"      : True,
-    "seed_execs"     : True,
-    "edge_time"      : True,
-    "edge_execs"     : True,
-    "throughput_time": True,
-}
-
+# 是否把 "+pat" 种子计入 edge_time 绘图中
+plusPAT = False
 ############################################### 1. 一些函数的定义    ##################################################
 
 # 在 timeout 限制下来运行一个命令
@@ -55,10 +47,19 @@ def sub_run(cmd, timeout):
 # afl-fuzz -i corpus/uniq -o findings -m none -c cmplog/uniq -d -- afl/uniq @@
 # afl-fuzz -i corpus/who -o findings -m none -c cmplog/who -d -- afl/who @@
 # MAGMA commands
-# afl-fuzz -i corpus/exif -o findings -m none -c cmplog/exif -d -- afl/exif -
-# afl-fuzz -i corpus/libpng_read_fuzzer -o findings -m none -c cmplog/libpng_read_fuzzer -d -- afl/libpng_read_fuzzer -
+# afl-fuzz -i corpus/lua -o findings -m none -c cmplog/lua -d -- afl/lua
+# afl-fuzz -i corpus/exif -o findings -m none -c cmplog/exif -d -- afl/exif - 
+# afl-fuzz -i corpus/sndfile_fuzzer -o findings -m none -c cmplog/sndfile_fuzzer -d -- afl/sndfile_fuzzer @@
+# afl-fuzz -i corpus/libpng_read_fuzzer -o findings -m none -c cmplog/libpng_read_fuzzer -d -- afl/libpng_read_fuzzer - 
+# afl-fuzz -i corpus/tiff_read_rgba_fuzzer -o findings -m none -c cmplog/tiff_read_rgba_fuzzer -d -- afl/tiff_read_rgba_fuzzer - 
+# afl-fuzz -i corpus/tiffcp -o findings -m none -c cmplog/tiffcp -d -- afl/tiffcp -M @@ tmp.out
+# afl-fuzz -i corpus/libxml2_xml_read_memory_fuzzer -o findings -m none -c cmplog/libxml2_xml_read_memory_fuzzer -d -- afl/libxml2_xml_read_memory_fuzzer - 
+# afl-fuzz -i corpus/xmllint -o findings -m none -c cmplog/xmllint -d -- afl/xmllint --valid --oldxml10 --push --memory @@
+# afl-fuzz -i corpus/sqlite3_fuzz -o findings -m none -c cmplog/sqlite3_fuzz -d -- afl/sqlite3_fuzz - 
+# afl-fuzz -i corpus/server -o findings -m none -c cmplog/server -d -- afl/server - 
+# afl-fuzz -i corpus/client -o findings -m none -c cmplog/client -d -- afl/client - 
+# afl-fuzz -i corpus/x509 -o findings -m none -c cmplog/x509 -d -- afl/x509 - 
 
-# CHANGE: 也许需要补充 program_args
 # 这里的 program_args 可以是为了找 edges，也可以是为了找 bugs
 edge_program_args = {
         # lAVAM
@@ -66,44 +67,34 @@ edge_program_args = {
         "md5sum": "-c",        
         "uniq": "",        
         "who": "",        
-        # # MAGMA
-        # "libpng_read_fuzzer": "",        
-        # "sndfile_fuzzer": "",
-        # "tiff_read_rgba_fuzzer": "",
-        # "tiffcp": "-M",
-        # "libxml2_xml_read_memory_fuzzer": "",
-        # "xmllint": "--valid --oldxml10 --push --memory"
-}
-
-bug_program_args = {
-        # lAVAM
-        "base64": "-d",        
-        "md5sum": "-c",        
-        "uniq": "",        
-        "who": "",        
-        # # MAGMA
-        # "libpng_read_fuzzer": "",        
-        # "sndfile_fuzzer": "",
-        # "tiff_read_rgba_fuzzer": "",
-        # "tiffcp": "-M",
-        # "libxml2_xml_read_memory_fuzzer": "",
-        # "xmllint": "--valid --oldxml10 --push --memory"
+        # MAGMA
+        "lua": "",
+        "exif": "",
+        # error while loading shared libraries: libFLAC.so.8: cannot open shared object file: No such file or directory
+        "sndfile_fuzzer": "",
+        "libpng_read_fuzzer": "",        
+        # error while loading shared libraries: libjpeg.so.8: cannot open shared object file: No such file or directory
+        "tiff_read_rgba_fuzzer": "",
+        # error while loading shared libraries: libjpeg.so.8: cannot open shared object file: No such file or directory
+        "tiffcp": "-M",
+        "libxml2_xml_read_memory_fuzzer": "",
+        "xmllint": "--valid --oldxml10 --push --memory",
+        "sqlite3_fuzz": "",
+        # TODO: 后续再加三个
 }
 
 # afl-showmap -o mapfile -m none -e -- ./base64_PUT -d output_dir/default/queue/id:000001,src:000000,time:32,execs:84,op:colorization,pos:0,+cov
+# singularity run ./afl-showmap.sif /magma/fuzzers/aflplusplus/repo/afl-showmap -o mapfile -m none -e -- ....
 base_command = ['singularity', 'run', 'afl-showmap.sif', '/magma/fuzzers/aflplusplus/repo/afl-showmap', '-o', 'mapfile', '-m', 'none', '-e', '--', 'PUT']
 
 # 转化时间为正确单位的函数
-def convert_Time(original_time):
-    # CHANGE: 正确地转化时间
+def ms_to_min(original_time):
     # 先转为秒
     original_time /= 1000
     # 再转为分
     original_time /= 60
-    # 再转为小时
-    original_time /= 60
-    # 向下取整
-    original_time = int(original_time)
+    # 向上取整
+    original_time = math.ceil(original_time)
     return original_time
 
 # 这个函数的目的：使用 afl-showmap 获取输入文件 filename 对程序 put 触发的 edges 合集，存放于字典中
@@ -116,6 +107,7 @@ def getEdges(put, program, filename, mapfile):
     command = copy.deepcopy(base_command)
     command[-1] = put
     assert(edge_program_args[program] is not None)
+    # TODO: 我现在在收集 MAGMA benchmarks 的运行命令，请等待，过会儿回来
     if edge_program_args[program]:
         command.append(edge_program_args[program])
     command.append(filename)
@@ -138,19 +130,6 @@ def getEdges(put, program, filename, mapfile):
 
     return triggered_edges_set 
 
-"""这个脚本应该在 cache 文件夹下运行"""
-# CHANGE: 配置，这里经常要改变 ============================== start
-TOTAL_TIME = 72 # 单位小时
-SPLIT_UNIT = 1 # 每隔 1 小时
-SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) # 分隔数量
-# ==============================================================
-FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
-# FUZZERS = ["aflplusplus", "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
-# FUZZERS = ["aflplusplus", "path_fuzzer_empty_path", "path_fuzzer_full_path", "cov_trans_fuzzer_empty_path", "cov_trans_fuzzer_full_path"]
-# ===================================================================
-REPEAT = 2 # 重复次数为 4
-# CHANGE: 配置，这里经常要改变 ============================== end
-
 # 用来记录已经完成的数据收集任务的数量
 finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
 
@@ -172,7 +151,7 @@ def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
     edge_time_slot_dict = [{} for _ in range(SPLIT_NUM)] 
     crashdir = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/crashes/"
     queuedir = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/queue/"
-    # 无论何时，PUT 都是同一个
+    # 无论何时，用来计算触发 edges 的 PUT 都是同一个
     put = "aflplusplus" + "/" + TARGET + "/" + thePROGRAM + "/0/afl/" + thePROGRAM
 
     # 先获取 crashes 的 edges
@@ -184,16 +163,14 @@ def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
         matches = re.findall(r"time:(\d+)", crash_file)
         assert(len(matches) < 2)
         if matches:
-
             # 如果是 +pat 种子，那么跳过，因为它必不增加 edge-cov 
             pat_matches = re.findall(r"\+pat", crash_file)
             assert(len(pat_matches) < 2)
-            if pat_matches:
+            if pat_matches and !(plusPAT):
                 continue
 
-            crash_time = convert_Time(int(matches[0]))
+            crash_time = ms_to_min(int(matches[0]))
 
-            assert(SPLIT_NUM == TOTAL_TIME)
             if crash_time < SPLIT_NUM:
                 # NOTE: 计算这个单独文件触发的边缘字典
                 triggered_edges_set = getEdges(put, thePROGRAM, crashdir + crash_file, "mapfile" + str(task_count))
@@ -242,7 +219,7 @@ def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
 # CHANGE: 这里根据不同的数据收集任务需要改变
 """总工作函数"""
 def worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    return seed_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count)
+    return edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count)
 
 def main():
     # NOTE: 判断当前文件夹是否正确 =======================
@@ -318,6 +295,7 @@ def main():
                         results.append(result)
 
     # 等待所有异步任务完成
+    # NOTE: 这里收集到的每个 RESULTS，都是一个 fuzzer-target-time 的 edge_time 数据，横轴是 time，纵轴是 edges
     print(f"================== There are {len(results)} data collect tasks in total ==================")
     sys.stdout.flush()
     for result in results:
