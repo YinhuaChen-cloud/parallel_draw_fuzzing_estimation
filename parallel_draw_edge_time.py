@@ -247,7 +247,7 @@ def main():
         for TARGET in TARGETS:
             path = FUZZER + "/" + TARGET
             its_PROGRAMS.append(getsubdir(path))
-        its_PROGRAMS = [ item for sublist in the_PROGRAMS for item in sublist ]
+        its_PROGRAMS = [ item for sublist in its_PROGRAMS for item in sublist ]
         PROGRAMS_list.append(its_PROGRAMS)
 
     for i in range(len(PROGRAMS_list)):
