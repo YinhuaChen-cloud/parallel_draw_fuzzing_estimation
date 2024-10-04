@@ -7,9 +7,10 @@ import sys
 import copy
 import subprocess
 import math
+from datetime import datetime
 
 ############################################### 0. 配置部分         ##################################################
-TOTAL_TIME = 60 * 60 # 单位分钟
+TOTAL_TIME = 20 * 60 # 单位分钟
 SPLIT_UNIT = 1  # 每隔 1 分钟
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
 # # 比较所有 fuzzers 的情况
@@ -17,7 +18,7 @@ SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数�
     # "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
 # 只比较 k=1 和 AFL++ 的情况
 FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
-TARGETS = ["php", "libsndfile", "libpng", "libtiff", "libxml2", "sqlite3", "lua"]
+TARGETS = ["php", "libsndfile", "libtiff", "sqlite3", "lua"]
 # FUZZERS = ["aflplusplus", "path_fuzzer_empty_path", "path_fuzzer_full_path", "cov_trans_fuzzer_empty_path", "cov_trans_fuzzer_full_path"]
 # TARGETS = ["base64", "md5sum", "uniq", "who"]
 # 表明这个脚本所运行的文件夹
@@ -73,7 +74,7 @@ edge_program_args = {
         "sndfile_fuzzer": ["INPUT_FILE"],
         "libpng_read_fuzzer": ["INPUT_FILE"],        
         "tiff_read_rgba_fuzzer": ["INPUT_FILE"],
-        "tiffcp": ["-M", "INPUT_FILE", "tmp.out"],
+        "tiffcp": ["-M", "INPUT_FILE", "TMPOUT"],
         "libxml2_xml_read_memory_fuzzer": ["INPUT_FILE"],
         "xmllint": ["--valid", "--oldxml10", "--push", "--memory", "INPUT_FILE"],
         "sqlite3_fuzz": ["INPUT_FILE"],
@@ -99,7 +100,7 @@ def ms_to_min(original_time):
 # 参数 program: PROGRAM 的字符串名称
 # 参数 filename: 输入文件的实际路径
 # 参数 mapfile: edgemap 的文件实际路径
-def getEdges(put, program, filename, mapfile):
+def getEdges(put, program, filename, mapfile, task_count):
     triggered_edges_set = {}
     command = copy.deepcopy(base_command)
     command[-1] = put
@@ -108,10 +109,16 @@ def getEdges(put, program, filename, mapfile):
     for arg in edge_program_args[program]:
         if arg == "INPUT_FILE":
             command.append(filename)
+        elif arg == "TMPOUT":
+            command.append("tmp.out." + str(task_count))
         else:
             command.append(arg)
 
-    result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    try: 
+        result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False, timeout=5)
+    except subprocess.TimeoutExpired:
+        print("TIME OUT, filename = " + filename)
+
     # 打印命令的标准输出
     # print("标准输出:")
     # print(result.stdout)
@@ -152,9 +159,10 @@ def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
     # 无论何时，用来计算触发 edges 的 PUT 都是同一个
     put = "aflplusplus" + "/" + TARGET + "/" + thePROGRAM + "/0/afl/" + thePROGRAM
 
-    # 先获取 crashes 的 edges
+    # 获取当前时间并以自定义格式显示
     files = getfiles(crashdir)
-    print("PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + ", len(crash_files) = " + str(len(files)))
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print("curtime:" + str(current_time) + " PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + ", len(crash_files) = " + str(len(files)) + " taskcount = " + str(task_count))
     sys.stdout.flush()
 
     for crash_file in files:
@@ -171,13 +179,19 @@ def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
 
             if crash_time < SPLIT_NUM:
                 # NOTE: 计算这个单独文件触发的边缘字典
-                triggered_edges_set = getEdges(put, thePROGRAM, crashdir + crash_file, "mapfile" + str(task_count))
+                triggered_edges_set = getEdges(put, thePROGRAM, crashdir + crash_file, "mapfile" + str(task_count), task_count)
                 # 在边缘字典槽里更新
                 edge_time_slot_dict[crash_time].update(triggered_edges_set)
 
+    # 获取当前时间并以自定义格式显示
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print("curtime:" + str(current_time) + " PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + " just finish collect crash data")
+    sys.stdout.flush()
+
     # 再获取 seeds 的 edges
     files = getfiles(queuedir)
-    print("PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + ", len(seed_files) = " + str(len(files)))
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print("curtime:" + str(current_time) + " PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + ", len(seedfiles) = " + str(len(files)) + " taskcount = " + str(task_count))
     sys.stdout.flush()
 
     for seed_file in files:
@@ -194,9 +208,14 @@ def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
 
             if seed_time < SPLIT_NUM:
                 # NOTE: 计算这个单独文件触发的边缘字典
-                triggered_edges_set = getEdges(put, thePROGRAM, queuedir + seed_file, "mapfile" + str(task_count))
+                triggered_edges_set = getEdges(put, thePROGRAM, queuedir + seed_file, "mapfile" + str(task_count), task_count)
                 # 在边缘字典槽里更新
                 edge_time_slot_dict[seed_time].update(triggered_edges_set)
+
+    # 获取当前时间并以自定义格式显示
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print("curtime:" + str(current_time) + " PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + " just finish collect seed data")
+    sys.stdout.flush()
                 
     # 先从增量数组转为存量数组
     for i in range(SPLIT_NUM-1):
