@@ -15,10 +15,10 @@ TOTAL_TIME = 60 * 60 # 单位分钟
 SPLIT_UNIT = 1  # 每隔 1 分钟
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
 # # 比较所有 fuzzers 的情况
-FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_empty_path_k_2", "path_fuzzer_empty_path_k_4", "path_fuzzer_empty_path_k_8", \
-    "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
+# FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_empty_path_k_2", "path_fuzzer_empty_path_k_4", "path_fuzzer_empty_path_k_8", \
+    # "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
 # 只比较 k=1 和 AFL++ 的情况
-# FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
+FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
 TARGETS = ["php", "libsndfile", "libpng", "libtiff", "libxml2", "sqlite3", "lua"]
 # FUZZERS = ["aflplusplus", "path_fuzzer_empty_path", "path_fuzzer_full_path", "cov_trans_fuzzer_empty_path", "cov_trans_fuzzer_full_path"]
 # TARGETS = ["base64", "md5sum", "uniq", "who"]
@@ -28,16 +28,16 @@ WORKDIR = "cache"
 # 重复次数
 REPEAT=2
 # 这次绘图命名的特殊后缀，比如 _empty or _full 之类的
-SPECIFIC_SUFFIX = "_all"
+SPECIFIC_SUFFIX = "_only1"
 # 决定绘制哪些图，不绘制哪些图
 draw_configure = {
-    "crash_time"     : False,
+    "crash_time"     : True,
     "crash_execs"    : True,
-    "seed_time"      : False,
+    "seed_time"      : True,
     "seed_execs"     : True,
-    "edge_time"      : False,
+    "edge_time"      : True,
     "edge_execs"     : True,
-    "throughput_time": False,
+    "throughput_time": True,
 }
 
 ############################################### 1. 一些函数的定义    ##################################################
@@ -152,6 +152,8 @@ for result in results:
 max_execs_dict = {}
 for PROGRAM in PROGRAMS:
     # 每个 PROGRAM，需要取 REPEAT x #FUZZERS 个 max_execs，然后取最小的
+    the_max_execs = -1
+    the_max_time  = -1
     max_execs_list = []
     for FUZZER in FUZZERS:
         # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，获取 dfs
@@ -164,6 +166,9 @@ for PROGRAM in PROGRAMS:
         assert(len(dfs) == REPEAT)
         # 从 dfs 中获取 max_execs
         for df in dfs:
+            if df["total_execs"].max() > the_max_execs:
+                the_max_execs = df["total_execs"].max() 
+                the_max_time = df["# relative_time"].max()
             # 只有时间长度达到目标的统计数据才会被加入 max_execs_list，这样可以有效防止死循环的 fuzzing 影响全局
             if (math.ceil(df["# relative_time"].max() / 60) >= SPLIT_NUM-1):
                 max_execs_list.append(df["total_execs"].max())
@@ -172,8 +177,10 @@ for PROGRAM in PROGRAMS:
     assert(len(max_execs_list) <= len(FUZZERS) * REPEAT)
     # assert(len(max_execs_list) == len(FUZZERS) * REPEAT)
     # 这个就是这个程序有效的最大的 execs (最小的 max_execs)
-    assert(len(max_execs_list) > 0)
-    max_execs = min(max_execs_list)
+    if (len(max_execs_list) > 0):
+        max_execs = min(max_execs_list)
+    else:
+        max_execs = TOTAL_TIME * 60 * int(the_max_execs/the_max_time)
     max_execs_dict[PROGRAM] = max_execs
 
 ############################################### 额外：定义绘图函数   ##################################################
