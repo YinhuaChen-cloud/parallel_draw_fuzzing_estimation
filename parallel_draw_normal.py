@@ -11,7 +11,7 @@ import pandas as pd
 import math
 
 ############################################### 0. 配置部分         ##################################################
-TOTAL_TIME = 60 * 60 # 单位分钟
+TOTAL_TIME = 72 * 60 # 单位分钟
 SPLIT_UNIT = 1  # 每隔 1 分钟
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
 # # 比较所有 fuzzers 的情况
@@ -35,8 +35,8 @@ draw_configure = {
     "crash_execs"    : True,
     "seed_time"      : True,
     "seed_execs"     : True,
-    "edge_time"      : True,
-    "edge_execs"     : True,
+    "edge_time"      : False,
+    "edge_execs"     : False,
     "throughput_time": True,
 }
 
