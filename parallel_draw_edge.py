@@ -1,3 +1,5 @@
+# 1. edge_time 代码审查 ----- doing
+# 2. edge_execs 代码审查 ----- doing
 import multiprocessing
 import time
 import os
@@ -7,17 +9,21 @@ import sys
 import copy
 import subprocess
 import math
+import csv
+import pandas as pd
 from datetime import datetime
 
 ############################################### 0. 配置部分         ##################################################
 TOTAL_TIME = 72 * 60 # 单位分钟
 SPLIT_UNIT = 1  # 每隔 1 分钟
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
-# # 比较所有 fuzzers 的情况
-# FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_empty_path_k_2", "path_fuzzer_empty_path_k_4", "path_fuzzer_empty_path_k_8", \
-    # "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
-# 只比较 k=1 和 AFL++ 的情况
-FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
+# 需要收集的数据
+FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_empty_path_k_2", "path_fuzzer_empty_path_k_4", "path_fuzzer_empty_path_k_8", \
+    "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
+# 需要绘制的图片的分类
+FUZZERS_1 = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
+FUZZERS_2 = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_empty_path_k_2", "path_fuzzer_empty_path_k_4", "path_fuzzer_empty_path_k_8", \
+    "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
 TARGETS = ["php", "libsndfile", "libtiff", "sqlite3", "lua", "libpng", "libxml2"]
 # FUZZERS = ["aflplusplus", "path_fuzzer_empty_path", "path_fuzzer_full_path", "cov_trans_fuzzer_empty_path", "cov_trans_fuzzer_full_path"]
 # TARGETS = ["base64", "md5sum", "uniq", "who"]
@@ -27,20 +33,21 @@ WORKDIR = "cache"
 # 重复次数
 REPEAT=2
 # 这次绘图命名的特殊后缀，比如 _empty or _full 之类的
-SPECIFIC_SUFFIX = "_only1"
+SPECIFIC_SUFFIX_1 = "_only1"
+SPECIFIC_SUFFIX_2 = "_all"
 # 是否把 "+pat" 种子计入 edge_time 绘图中
 plusPAT = False
 ############################################### 1. 一些函数的定义    ##################################################
 
-# 在 timeout 限制下来运行一个命令
-def sub_run(cmd, timeout):
-    try: 
-         r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=timeout)
-         return r
-    except subprocess.TimeoutExpired:
-        print("time out")
-        return None
-    return None
+# # 在 timeout 限制下来运行一个命令
+# def sub_run(cmd, timeout):
+#     try: 
+#          r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=timeout)
+#          return r
+#     except subprocess.TimeoutExpired:
+#         print("time out")
+#         return None
+#     return None
 
 # LAVAM commands
 # afl-fuzz -i corpus/base64 -o findings -m none -c cmplog/base64 -d -- afl/base64 -d @@
@@ -78,7 +85,6 @@ edge_program_args = {
         "libxml2_xml_read_memory_fuzzer": ["INPUT_FILE"],
         "xmllint": ["--valid", "--oldxml10", "--push", "--memory", "INPUT_FILE"],
         "sqlite3_fuzz": ["INPUT_FILE"],
-        # TODO: 后续再加三个
 }
 
 # afl-showmap -o mapfile -m none -e -- ./base64_PUT -d output_dir/default/queue/id:000001,src:000000,time:32,execs:84,op:colorization,pos:0,+cov
@@ -160,37 +166,52 @@ def getfiles(basedir):
     return files
 
 """用来收集 edge_time 数据的工作函数"""
-def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    edge_time_slot = [0] * SPLIT_NUM
+"""返回 edge_time 和 edge_execs 两个数组"""
+def edge_data_collector(FUZZER, TARGET, thePROGRAM, TIME, task_count):
+    edge_time_slot  = [0] * SPLIT_NUM
+    edge_execs_slot = [0] * SPLIT_NUM
+
     edge_time_slot_dict = [{} for _ in range(SPLIT_NUM)] 
+    edge_execs_slot_dict = [{} for _ in range(SPLIT_NUM)] 
+
     crashdir = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/crashes/"
     queuedir = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/queue/"
     # 无论何时，用来计算触发 edges 的 PUT 都是同一个
     put = "aflplusplus" + "/" + TARGET + "/" + thePROGRAM + "/0/afl/" + thePROGRAM
 
-    # 获取当前时间并以自定义格式显示
+    # 获取 crashes 文件夹下的所有文件
     files = getfiles(crashdir)
+    # 获取当前时间并以自定义格式显示
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print("curtime:" + str(current_time) + " PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + ", len(crash_files) = " + str(len(files)) + " taskcount = " + str(task_count))
     sys.stdout.flush()
 
     for crash_file in files:
-        matches = re.findall(r"time:(\d+)", crash_file)
-        assert(len(matches) < 2)
-        if matches:
-            # 如果是 +pat 种子，那么跳过，因为它必不增加 edge-cov 
-            pat_matches = re.findall(r"\+pat", crash_file)
-            assert(len(pat_matches) < 2)
-            if pat_matches and (not plusPAT):
-                continue
+        match_time  = re.findall(r"time:(\d+)", crash_file)
+        match_execs = re.findall(r"execs:(\d+)", crash_file)
+        assert(len(match_time) < 2)
+        assert(len(match_execs) < 2)
 
-            crash_time = ms_to_min(int(matches[0]))
+        # 过滤掉非常规文件
+        if (not match_time) or (not match_execs):
+            continue
 
-            if crash_time < SPLIT_NUM:
-                # NOTE: 计算这个单独文件触发的边缘字典
-                triggered_edges_set = getEdges(put, thePROGRAM, crashdir + crash_file, "mapfile" + str(task_count), task_count)
-                # 在边缘字典槽里更新
-                edge_time_slot_dict[crash_time].update(triggered_edges_set)
+        assert(match_time and match_execs)
+
+        # 如果是 +pat 种子，那么跳过，因为它必不增加 edge-cov 
+        pat_match = re.findall(r"\+pat", crash_file)
+        assert(len(pat_match) < 2)
+        if pat_match and (not plusPAT):
+            continue
+
+        # 获取这个文件触发的 edges
+        triggered_edges_set = getEdges(put, thePROGRAM, crashdir + crash_file, "mapfile" + str(task_count), task_count)
+        # 先统计时间，放入 edge_time_slot_dict
+        crash_time = ms_to_min(int(match_time[0]))
+        if crash_time < SPLIT_NUM:
+            edge_time_slot_dict[crash_time].update(triggered_edges_set)
+        # 先统计执行次数，放入 edge_execs_slot_dict
+        # TODO: we are here <-------------- ! nested x 1
 
     # 获取当前时间并以自定义格式显示
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -244,9 +265,10 @@ def edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
 # CHANGE: 这里根据不同的数据收集任务需要改变
 """总工作函数"""
 def worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
-    return edge_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count)
+    return edge_data_collector(FUZZER, TARGET, thePROGRAM, TIME, task_count)
 
 def main():
+    ############################################### 2. 做一些验证    ################################################## 审查完毕
     # NOTE: 判断当前文件夹是否正确 =======================
     current_directory = os.getcwd()
     directory_name = os.path.basename(current_directory)
@@ -283,7 +305,49 @@ def main():
 
     PROGRAMS = PROGRAMS_list[0]
 
-    # NOTE: 为多线程收集数据做的一些准备 ===================================================
+    ############################################### 额外：统计各程序 avg_execs_unit   ################################################## 审查完成
+    # 格式: {key:PROGRAM value: {key: FUZZER value: execs_unit}}
+    # 为每对 PROGRAM-FUZZER 找一个 execs_unit，选择所有 TIMES 中最慢/最小的那个
+    execs_unit_dict = {}
+    for PROGRAM in PROGRAMS:
+
+        # 初始化第一个字典
+        execs_unit_dict[PROGRAM] = {}
+
+        for FUZZER in FUZZERS:
+            for TARGET in TARGETS:
+                path = FUZZER + "/" + TARGET
+                thePROGRAMS = getsubdir(path)
+
+                for thePROGRAM in thePROGRAMS:
+                    if thePROGRAM != PROGRAM:
+                        continue
+
+                    path = FUZZER + "/" + TARGET + "/" + thePROGRAM
+                    execs_list = [] # 这个 PROGRAM-FUZZER 对的所有 TIMES 的 avg_execs_unit
+
+                    TIMES = getsubdir(path)
+                    assert(len(TIMES) == REPEAT)
+
+                    for TIME in TIMES:
+                        assert(int(TIME) < REPEAT)
+
+                    for TIME in TIMES:
+                        plot_data_file = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/default/plot_data"
+                        df = pd.read_csv(plot_data_file)
+                        # 对所有列名进行 strip() 处理
+                        df.columns = df.columns.str.strip()
+                        assert(not df.empty)
+                        # 取出 "relative_time" 最大的那一行
+                        max_row = df.loc[df["# relative_time"].idxmax()]
+                        avg_execs_unit = max_row["total_execs"] / max_row["# relative_time"]
+                        execs_list.append(avg_execs_unit)
+
+                    execs_unit_dict[PROGRAM][FUZZER] = min(execs_list)
+
+    ############################################### 3. 并行收集所有 edge 数据，包括 edge_time 和 edge_execs    ##################################################
+    # TODO: I am mother fucking herre!!! <----------
+
     # 获取 CPU cores 总数
     num_cores = multiprocessing.cpu_count()
     print(f'CPU 核心数量: {num_cores}')
@@ -325,6 +389,8 @@ def main():
     sys.stdout.flush()
     for result in results:
         result.wait()
+
+    # TODO: we are here!!! <-------
 
     # 绘图:
     for PROGRAM in PROGRAMS:
@@ -381,3 +447,7 @@ if __name__ == '__main__':
     main()
 
 
+
+# TODO: 这个要检查再用
+# # 添加 "X" 标记
+# plt.text(3, 5, 'X', fontsize=12, ha='center', va='center', color='red')
