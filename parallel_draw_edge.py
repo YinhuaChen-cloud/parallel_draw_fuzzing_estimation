@@ -289,9 +289,9 @@ def edge_data_collector(FUZZER, TARGET, thePROGRAM, TIME, fuzzer1_execs_unit, fu
     for i in range(SPLIT_NUM):
         edge_time_slot[i] = len(edge_time_slot_dict[i])
     for i in range(SPLIT_NUM):
-        edge_execs_slot_1[i] = len(edge_execs_slot[i])
+        edge_execs_slot_1[i] = len(edge_execs_slot_dict_1[i])
     for i in range(SPLIT_NUM):
-        edge_execs_slot_2[i] = len(edge_execs_slot[i])
+        edge_execs_slot_2[i] = len(edge_execs_slot_dict_2[i])
 
     global finished_tasks
     with finished_tasks.get_lock():
