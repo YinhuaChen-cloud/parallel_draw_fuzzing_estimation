@@ -281,9 +281,9 @@ def edge_data_collector(FUZZER, TARGET, thePROGRAM, TIME, fuzzer1_execs_unit, fu
     for i in range(SPLIT_NUM-1):
         edge_time_slot_dict[i+1].update(edge_time_slot_dict[i])
     for i in range(SPLIT_NUM-1):
-        edge_execs_slot_dict_1[i+1].update(edge_execs_slot_dict[i])
+        edge_execs_slot_dict_1[i+1].update(edge_execs_slot_dict_1[i])
     for i in range(SPLIT_NUM-1):
-        edge_execs_slot_dict_2[i+1].update(edge_execs_slot_dict[i])
+        edge_execs_slot_dict_2[i+1].update(edge_execs_slot_dict_2[i])
 
     # 再从字典数组转为 edges 数量数组
     for i in range(SPLIT_NUM):
