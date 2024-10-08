@@ -15,10 +15,10 @@ TOTAL_TIME = 72 * 60 # 单位分钟
 SPLIT_UNIT = 1  # 每隔 1 分钟
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
 # # 比较所有 fuzzers 的情况
-# FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_empty_path_k_2", "path_fuzzer_empty_path_k_4", "path_fuzzer_empty_path_k_8", \
-    # "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
+FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_empty_path_k_2", "path_fuzzer_empty_path_k_4", "path_fuzzer_empty_path_k_8", \
+    "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
 # 只比较 k=1 和 AFL++ 的情况
-FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
+# FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
 TARGETS = ["php", "libsndfile", "libpng", "libtiff", "libxml2", "sqlite3", "lua"]
 # FUZZERS = ["aflplusplus", "path_fuzzer_empty_path", "path_fuzzer_full_path", "cov_trans_fuzzer_empty_path", "cov_trans_fuzzer_full_path"]
 # TARGETS = ["base64", "md5sum", "uniq", "who"]
@@ -28,7 +28,7 @@ WORKDIR = "cache"
 # 重复次数
 REPEAT=2
 # 这次绘图命名的特殊后缀，比如 _empty or _full 之类的
-SPECIFIC_SUFFIX = "_only1"
+SPECIFIC_SUFFIX = "_all"
 
 ############################################### 1. 一些函数的定义    ##################################################
 # 定义获取子目录的函数
