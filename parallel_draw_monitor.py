@@ -11,7 +11,7 @@ import pandas as pd
 import math
 
 ############################################### 0. 配置部分         ##################################################
-TOTAL_TIME = 60 * 60 # 单位分钟
+TOTAL_TIME = 72 * 60 # 单位分钟
 SPLIT_UNIT = 1  # 每隔 1 分钟
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
 # # 比较所有 fuzzers 的情况
@@ -98,6 +98,10 @@ def collect_monitor_worker(FUZZER, TARGET, PROGRAM, TIME, task_count):
     monitor_dir = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/monitor"
     # 获取 monitor_list 按从小到大的顺序
     monitor_files = getfiles(monitor_dir)
+    # 如果文件中有 tmp，那么扔掉它
+    if "tmp" in monitor_files:
+        monitor_files.remove("tmp")
+
     monitor_list = list(map(int, monitor_files))
     monitor_list = sorted(monitor_list)
     
@@ -133,6 +137,7 @@ def collect_monitor_worker(FUZZER, TARGET, PROGRAM, TIME, task_count):
     # 返回存储数据的 DataFrame
     return (FUZZER, TARGET, PROGRAM, TIME, slot)
 
+############################################### 3. 读取所有 monitor 总结 bug_time 数组 ##################################################
 # 获取 CPU cores 总数
 num_cores = multiprocessing.cpu_count()
 print(f'CPU 核心数量: {num_cores}')

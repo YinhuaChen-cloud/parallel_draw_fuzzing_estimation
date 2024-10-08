@@ -10,7 +10,7 @@ import math
 from datetime import datetime
 
 ############################################### 0. 配置部分         ##################################################
-TOTAL_TIME = 20 * 60 # 单位分钟
+TOTAL_TIME = 72 * 60 # 单位分钟
 SPLIT_UNIT = 1  # 每隔 1 分钟
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
 # # 比较所有 fuzzers 的情况
@@ -18,7 +18,7 @@ SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数�
     # "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
 # 只比较 k=1 和 AFL++ 的情况
 FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
-TARGETS = ["php", "libsndfile", "libtiff", "sqlite3", "lua"]
+TARGETS = ["php", "libsndfile", "libtiff", "sqlite3", "lua", "libpng", "libxml2"]
 # FUZZERS = ["aflplusplus", "path_fuzzer_empty_path", "path_fuzzer_full_path", "cov_trans_fuzzer_empty_path", "cov_trans_fuzzer_full_path"]
 # TARGETS = ["base64", "md5sum", "uniq", "who"]
 # 表明这个脚本所运行的文件夹
@@ -27,9 +27,9 @@ WORKDIR = "cache"
 # 重复次数
 REPEAT=2
 # 这次绘图命名的特殊后缀，比如 _empty or _full 之类的
-SPECIFIC_SUFFIX = "_PAT"
+SPECIFIC_SUFFIX = "_only1"
 # 是否把 "+pat" 种子计入 edge_time 绘图中
-plusPAT = True
+plusPAT = False
 ############################################### 1. 一些函数的定义    ##################################################
 
 # 在 timeout 限制下来运行一个命令
