@@ -460,12 +460,12 @@ def main():
             execs_list.append(execs_unit_dict[PROGRAM][fuzzer])
         fuzzer2_execs_unit = np.median(execs_list)
 
-        # TODO:
+        # NOTE: 绘制 FUZZERS1 的 edge_time图
         plt.figure()  # 创建一个新的图形
-        for FUZZER in FUZZERS:
+        for FUZZER in FUZZERS_1:
             # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数组，随后求平均
             count = 0
-            result_time_slot = [[] for _ in range(REPEAT)]
+            time_slot_list  = [[] for _ in range(REPEAT)]
             for result in results:
                 fuzz_result = result.get()
                 if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
@@ -474,49 +474,80 @@ def main():
                 count += 1
             assert(count == REPEAT)
             # 求平均，向上取整
-            result_time_slot_avg = [0] * SPLIT_NUM
+            time_slot_avg  = [0] * SPLIT_NUM
             for i in range(SPLIT_NUM):
                 for k in range(REPEAT):
-                    result_time_slot_avg[i] += result_time_slot[k][i]
-                result_time_slot_avg[i] /= REPEAT
-                result_time_slot_avg[i] = math.ceil(result_time_slot_avg[i])
+                    time_slot_avg[i]  += time_slot_list[k][i]
+                time_slot_avg[i] /= REPEAT
+                time_slot_avg[i] = math.ceil(time_slot_avg[i])
             # 开始绘图  
             x = [ (i/60) for i in range(SPLIT_NUM) ]
-            y = result_time_slot_avg
+            y = time_slot_avg
             # 绘制图形
             plt.plot(x, y, linestyle='-', label=FUZZER) 
             # 添加图例
             plt.legend()
-
-        # 添加标题和标签 CHANGE:
+        # 添加标题和标签 
         # 注意：edges 最好使用 min 作为横轴单位！！！
         plt.title(PROGRAM + ' edge-time graph')
         plt.xlabel('time(h)')
         plt.ylabel('# edges')
         # 保存图形为文件: 每个 PROGRAM 画一张图
-        plt.savefig('edge_time_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
-        print("finish drawing edge_time_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
+        plt.savefig('edge_time_' + PROGRAM + SPECIFIC_SUFFIX_1 + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+        print("finish drawing edge_time_" + PROGRAM + SPECIFIC_SUFFIX_1 + ".svg")
         sys.stdout.flush()
-
         plt.close()  # 关闭图形
 
-    print("total " + str(len(results)) + " fuzzing result collect tasks")
-    sys.stdout.flush()
-
-    ############################################### 5. 绘制 FUZZERS2 edge_execs 图    ##################################################
-    # 使用的 execs_unit 选中位数，在前边的画个 X
-
-    ############################################### 6. 绘制 FUZZERS1 和 FUZZERS2 两张 edge_time 图    ##################################################
-
-    # 绘图:
-    for PROGRAM in PROGRAMS:
-
+        # NOTE: 绘制 FUZZERS1 的 edge_execs图
         plt.figure()  # 创建一个新的图形
-
-        for FUZZER in FUZZERS:
+        for FUZZER in FUZZERS_1:
             # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数组，随后求平均
             count = 0
-            result_time_slot = [[] for _ in range(REPEAT)]
+            execs_slot_list  = [[] for _ in range(REPEAT)]
+            for result in results:
+                fuzz_result = result.get()
+                if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
+                    continue
+                result_execs_slot[count] = fuzz_result[5]
+                count += 1
+            assert(count == REPEAT)
+            # 求平均，向上取整
+            execs_slot_avg  = [0] * SPLIT_NUM
+            for i in range(SPLIT_NUM):
+                for k in range(REPEAT):
+                    execs_slot_avg[i]  += execs_slot_list[k][i]
+                execs_slot_avg[i] /= REPEAT
+                execs_slot_avg[i] = math.ceil(execs_slot_avg[i])
+            # 开始绘图  
+            x = [ i*fuzzer1_execs_unit for i in range(SPLIT_NUM) ]
+            y = execs_slot_avg
+            # 绘制图形
+            plt.plot(x, y, linestyle='-', label=FUZZER) 
+            # 添加图例
+            plt.legend()
+            # 如果 execs_unit_dict[PROGRAM][FUZZER] < fuzzer1_execs_unit，那么在相应处绘制 x 表示在那个地方中止
+            if execs_unit_dict[PROGRAM][FUZZER] < fuzzer1_execs_unit:
+                final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME)
+                k = math.ceil(final_execs / fuzzer1_execs_unit)
+                assert(k <= TOTAL_TIME)
+                plt.text(k, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
+        # 添加标题和标签 
+        # 注意：edges 最好使用 min 作为横轴单位！！！
+        plt.title(PROGRAM + ' edge-execs graph')
+        plt.xlabel('# execs')
+        plt.ylabel('# edges')
+        # 保存图形为文件: 每个 PROGRAM 画一张图
+        plt.savefig('edge_execs_' + PROGRAM + SPECIFIC_SUFFIX_1 + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+        print("finish drawing edge_execs_" + PROGRAM + SPECIFIC_SUFFIX_1 + ".svg")
+        sys.stdout.flush()
+        plt.close()  # 关闭图形
+
+        # NOTE: 绘制 FUZZERS2 的 edge_time图
+        plt.figure()  # 创建一个新的图形
+        for FUZZER in FUZZERS_2:
+            # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数组，随后求平均
+            count = 0
+            time_slot_list  = [[] for _ in range(REPEAT)]
             for result in results:
                 fuzz_result = result.get()
                 if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
@@ -525,36 +556,75 @@ def main():
                 count += 1
             assert(count == REPEAT)
             # 求平均，向上取整
-            result_time_slot_avg = [0] * SPLIT_NUM
+            time_slot_avg  = [0] * SPLIT_NUM
             for i in range(SPLIT_NUM):
                 for k in range(REPEAT):
-                    result_time_slot_avg[i] += result_time_slot[k][i]
-                result_time_slot_avg[i] /= REPEAT
-                result_time_slot_avg[i] = math.ceil(result_time_slot_avg[i])
-            # 开始绘图  CHANGE:
+                    time_slot_avg[i]  += time_slot_list[k][i]
+                time_slot_avg[i] /= REPEAT
+                time_slot_avg[i] = math.ceil(time_slot_avg[i])
+            # 开始绘图  
             x = [ (i/60) for i in range(SPLIT_NUM) ]
-            y = result_time_slot_avg
+            y = time_slot_avg
             # 绘制图形
             plt.plot(x, y, linestyle='-', label=FUZZER) 
             # 添加图例
             plt.legend()
-
-        # 添加标题和标签 CHANGE:
+        # 添加标题和标签 
         # 注意：edges 最好使用 min 作为横轴单位！！！
         plt.title(PROGRAM + ' edge-time graph')
         plt.xlabel('time(h)')
         plt.ylabel('# edges')
         # 保存图形为文件: 每个 PROGRAM 画一张图
-        plt.savefig('edge_time_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
-        print("finish drawing edge_time_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
+        plt.savefig('edge_time_' + PROGRAM + SPECIFIC_SUFFIX_2 + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+        print("finish drawing edge_time_" + PROGRAM + SPECIFIC_SUFFIX_2 + ".svg")
         sys.stdout.flush()
-
         plt.close()  # 关闭图形
 
-    print("total " + str(len(results)) + " fuzzing result collect tasks")
-    sys.stdout.flush()
+        # NOTE: 绘制 FUZZERS2 的 edge_execs图
+        plt.figure()  # 创建一个新的图形
+        for FUZZER in FUZZERS_2:
+            # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数组，随后求平均
+            count = 0
+            execs_slot_list  = [[] for _ in range(REPEAT)]
+            for result in results:
+                fuzz_result = result.get()
+                if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
+                    continue
+                result_execs_slot[count] = fuzz_result[6]
+                count += 1
+            assert(count == REPEAT)
+            # 求平均，向上取整
+            execs_slot_avg  = [0] * SPLIT_NUM
+            for i in range(SPLIT_NUM):
+                for k in range(REPEAT):
+                    execs_slot_avg[i]  += execs_slot_list[k][i]
+                execs_slot_avg[i] /= REPEAT
+                execs_slot_avg[i] = math.ceil(execs_slot_avg[i])
+            # 开始绘图  
+            x = [ i*fuzzer2_execs_unit for i in range(SPLIT_NUM) ]
+            y = execs_slot_avg
+            # 绘制图形
+            plt.plot(x, y, linestyle='-', label=FUZZER) 
+            # 添加图例
+            plt.legend()
+            # 如果 execs_unit_dict[PROGRAM][FUZZER] < fuzzer2_execs_unit，那么在相应处绘制 x 表示在那个地方中止
+            if execs_unit_dict[PROGRAM][FUZZER] < fuzzer2_execs_unit:
+                final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME)
+                k = math.ceil(final_execs / fuzzer2_execs_unit)
+                assert(k <= TOTAL_TIME)
+                plt.text(k, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
+        # 添加标题和标签 
+        # 注意：edges 最好使用 min 作为横轴单位！！！
+        plt.title(PROGRAM + ' edge-execs graph')
+        plt.xlabel('# execs')
+        plt.ylabel('# edges')
+        # 保存图形为文件: 每个 PROGRAM 画一张图
+        plt.savefig('edge_execs_' + PROGRAM + SPECIFIC_SUFFIX_2 + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+        print("finish drawing edge_execs_" + PROGRAM + SPECIFIC_SUFFIX_2 + ".svg")
+        sys.stdout.flush()
+        plt.close()  # 关闭图形
 
-    ############################################### 7. 结束   ##################################################
+    ############################################### 5. 结束   ##################################################
     pool.close()
     pool.join()
     exit(0)
@@ -564,6 +634,6 @@ if __name__ == '__main__':
 
 
 
-# TODO: 这个要检查再用
+# NOTE: 用来绘制运行慢的那些 PROGRAM-FUZZER 实验的终点
 # # 添加 "X" 标记
 # plt.text(3, 5, 'X', fontsize=12, ha='center', va='center', color='red')
