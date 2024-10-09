@@ -465,12 +465,12 @@ def main():
         for FUZZER in FUZZERS_1:
             # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数组，随后求平均
             count = 0
-            time_slot_list  = [[] for _ in range(REPEAT)]
+            time_slot_list = [[] for _ in range(REPEAT)]
             for result in results:
                 fuzz_result = result.get()
                 if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
                     continue
-                result_time_slot[count] = fuzz_result[4]
+                time_slot_list[count] = fuzz_result[4]
                 count += 1
             assert(count == REPEAT)
             # 求平均，向上取整
@@ -547,12 +547,12 @@ def main():
         for FUZZER in FUZZERS_2:
             # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数组，随后求平均
             count = 0
-            time_slot_list  = [[] for _ in range(REPEAT)]
+            time_slot_list = [[] for _ in range(REPEAT)]
             for result in results:
                 fuzz_result = result.get()
                 if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
                     continue
-                result_time_slot[count] = fuzz_result[4]
+                time_slot_list[count] = fuzz_result[4]
                 count += 1
             assert(count == REPEAT)
             # 求平均，向上取整
