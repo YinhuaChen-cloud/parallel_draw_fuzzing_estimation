@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import re
 import sys
 import copy
-import subprocess
 import csv
 import pandas as pd
 import math
@@ -31,13 +30,13 @@ REPEAT=2
 SPECIFIC_SUFFIX = "_all"
 # 决定绘制哪些图，不绘制哪些图
 draw_configure = {
-    "crash_time"     : True,
-    "crash_execs"    : True,
-    "seed_time"      : True,
-    "seed_execs"     : True,
-    "edge_time"      : False,
-    "edge_execs"     : False,
-    "throughput_time": True,
+    "crash_time"     : False,
+    "crash_execs"    : False,
+    "seed_time"      : False,
+    "seed_execs"     : False,
+    "edge_time"      : True,
+    "edge_execs"     : True,
+    "throughput_time": False,
 }
 
 ############################################### 1. 一些函数的定义    ##################################################

@@ -508,7 +508,7 @@ def main():
                 fuzz_result = result.get()
                 if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
                     continue
-                result_execs_slot[count] = fuzz_result[5]
+                execs_slot_list[count] = fuzz_result[5]
                 count += 1
             assert(count == REPEAT)
             # 求平均，向上取整
@@ -590,7 +590,7 @@ def main():
                 fuzz_result = result.get()
                 if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
                     continue
-                result_execs_slot[count] = fuzz_result[6]
+                execs_slot_list[count] = fuzz_result[6]
                 count += 1
             assert(count == REPEAT)
             # 求平均，向上取整
