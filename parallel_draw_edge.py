@@ -625,6 +625,11 @@ def main():
         plt.close()  # 关闭图形
 
     ############################################### 5. 结束   ##################################################
+    # 获取当前时间并以自定义格式显示
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print("curtime:" + str(current_time) + " seems everything finish")
+    sys.stdout.flush()
+
     pool.close()
     pool.join()
     exit(0)
