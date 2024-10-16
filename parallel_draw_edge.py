@@ -387,7 +387,7 @@ def main():
                         assert(not df.empty)
                         # 取出 "relative_time" 最大的那一行
                         max_row = df.loc[df["# relative_time"].idxmax()]
-                        avg_execs_unit = max_row["total_execs"] / max_row["# relative_time"]
+                        avg_execs_unit = (max_row["total_execs"] / max_row["# relative_time"]) * 60 # 每分钟执行次数
                         execs_list.append(avg_execs_unit)
 
                     execs_unit_dict[PROGRAM][FUZZER] = min(execs_list)
@@ -528,7 +528,7 @@ def main():
                 execs_slot_avg[i] /= REPEAT
                 execs_slot_avg[i] = math.ceil(execs_slot_avg[i])
             # 开始绘图  
-            x = [ i*fuzzer1_execs_unit*60 for i in range(SPLIT_NUM) ]
+            x = [ i*fuzzer1_execs_unit for i in range(SPLIT_NUM) ]
             y = execs_slot_avg
             # 绘制图形
             plt.plot(x, y, linestyle='-', label=FUZZER) 
@@ -536,9 +536,9 @@ def main():
             plt.legend()
             # 如果 execs_unit_dict[PROGRAM][FUZZER] < fuzzer1_execs_unit，那么在相应处绘制 x 表示在那个地方中止
             if execs_unit_dict[PROGRAM][FUZZER] < fuzzer1_execs_unit:
-                final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME) * 60
+                final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME)
                 k = math.ceil(final_execs / fuzzer1_execs_unit)
-                assert(k <= TOTAL_TIME * 60)
+                assert(k <= TOTAL_TIME)
                 plt.text(k, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
         # 添加标题和标签 
         # 注意：edges 最好使用 min 作为横轴单位！！！
@@ -610,7 +610,7 @@ def main():
                 execs_slot_avg[i] /= REPEAT
                 execs_slot_avg[i] = math.ceil(execs_slot_avg[i])
             # 开始绘图  
-            x = [ i*fuzzer2_execs_unit*60 for i in range(SPLIT_NUM) ]
+            x = [ i*fuzzer2_execs_unit for i in range(SPLIT_NUM) ]
             y = execs_slot_avg
             # 绘制图形
             plt.plot(x, y, linestyle='-', label=FUZZER) 
@@ -618,9 +618,9 @@ def main():
             plt.legend()
             # 如果 execs_unit_dict[PROGRAM][FUZZER] < fuzzer2_execs_unit，那么在相应处绘制 x 表示在那个地方中止
             if execs_unit_dict[PROGRAM][FUZZER] < fuzzer2_execs_unit:
-                final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME) * 60
+                final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME)
                 k = math.ceil(final_execs / fuzzer2_execs_unit)
-                assert(k <= TOTAL_TIME * 60)
+                assert(k <= TOTAL_TIME)
                 plt.text(k, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
         # 添加标题和标签 
         # 注意：edges 最好使用 min 作为横轴单位！！！
