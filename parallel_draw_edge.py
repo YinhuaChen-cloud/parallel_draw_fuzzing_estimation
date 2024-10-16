@@ -539,7 +539,7 @@ def main():
                 final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME)
                 k = math.ceil(final_execs / fuzzer1_execs_unit)
                 assert(k <= TOTAL_TIME)
-                plt.text(k, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
+                plt.text(k*fuzzer1_execs_unit, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
         # 添加标题和标签 
         # 注意：edges 最好使用 min 作为横轴单位！！！
         plt.title(PROGRAM + ' edge-execs graph')
@@ -621,7 +621,7 @@ def main():
                 final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME)
                 k = math.ceil(final_execs / fuzzer2_execs_unit)
                 assert(k <= TOTAL_TIME)
-                plt.text(k, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
+                plt.text(k*fuzzer2_execs_unit, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
         # 添加标题和标签 
         # 注意：edges 最好使用 min 作为横轴单位！！！
         plt.title(PROGRAM + ' edge-execs graph')
