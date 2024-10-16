@@ -538,7 +538,7 @@ def main():
             if execs_unit_dict[PROGRAM][FUZZER] < fuzzer1_execs_unit:
                 final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME) * 60
                 k = math.ceil(final_execs / fuzzer1_execs_unit)
-                assert(k <= TOTAL_TIME)
+                assert(k <= TOTAL_TIME * 60)
                 plt.text(k, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
         # 添加标题和标签 
         # 注意：edges 最好使用 min 作为横轴单位！！！
@@ -620,7 +620,7 @@ def main():
             if execs_unit_dict[PROGRAM][FUZZER] < fuzzer2_execs_unit:
                 final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME) * 60
                 k = math.ceil(final_execs / fuzzer2_execs_unit)
-                assert(k <= TOTAL_TIME)
+                assert(k <= TOTAL_TIME * 60)
                 plt.text(k, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
         # 添加标题和标签 
         # 注意：edges 最好使用 min 作为横轴单位！！！
