@@ -17,7 +17,7 @@ import numpy as np
 execs_unit_dict = None
 
 ############################################### 0. 配置部分         ##################################################
-TOTAL_TIME = 72 * 60 # 单位分钟
+TOTAL_TIME = 48 * 60 # 单位分钟
 SPLIT_UNIT = 1  # 每隔 1 分钟
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
 # 需要收集的数据
@@ -129,13 +129,22 @@ def getEdges(put, program, filename, mapfile, task_count):
             result = subprocess.run(tmpcmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=5)
         except:
             print("Unexpected error at tiffcp: " + filename)
+            print("result.stdout =============================")
+            print(result.stdout)
+            print("result.stderr =============================")
+            print(result.stderr)
             assert(0)
         command[12] = tmpcmd[2]
 
     try: 
-        result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False, timeout=5)
-    except subprocess.TimeoutExpired:
-        print("TIME OUT, filename = " + filename)
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=5)
+    except:
+        print("result.stdout =============================")
+        print(result.stdout)
+        print("result.stderr =============================")
+        print(result.stderr)
+        print("===== or TIME OUT, filename = " + filename)
+        assert(0)
 
     # 打印命令的标准输出
     # print("标准输出:")
@@ -519,7 +528,7 @@ def main():
                 execs_slot_avg[i] /= REPEAT
                 execs_slot_avg[i] = math.ceil(execs_slot_avg[i])
             # 开始绘图  
-            x = [ i*fuzzer1_execs_unit for i in range(SPLIT_NUM) ]
+            x = [ i*fuzzer1_execs_unit*60 for i in range(SPLIT_NUM) ]
             y = execs_slot_avg
             # 绘制图形
             plt.plot(x, y, linestyle='-', label=FUZZER) 
@@ -527,7 +536,7 @@ def main():
             plt.legend()
             # 如果 execs_unit_dict[PROGRAM][FUZZER] < fuzzer1_execs_unit，那么在相应处绘制 x 表示在那个地方中止
             if execs_unit_dict[PROGRAM][FUZZER] < fuzzer1_execs_unit:
-                final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME)
+                final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME) * 60
                 k = math.ceil(final_execs / fuzzer1_execs_unit)
                 assert(k <= TOTAL_TIME)
                 plt.text(k, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
@@ -601,7 +610,7 @@ def main():
                 execs_slot_avg[i] /= REPEAT
                 execs_slot_avg[i] = math.ceil(execs_slot_avg[i])
             # 开始绘图  
-            x = [ i*fuzzer2_execs_unit for i in range(SPLIT_NUM) ]
+            x = [ i*fuzzer2_execs_unit*60 for i in range(SPLIT_NUM) ]
             y = execs_slot_avg
             # 绘制图形
             plt.plot(x, y, linestyle='-', label=FUZZER) 
@@ -609,7 +618,7 @@ def main():
             plt.legend()
             # 如果 execs_unit_dict[PROGRAM][FUZZER] < fuzzer2_execs_unit，那么在相应处绘制 x 表示在那个地方中止
             if execs_unit_dict[PROGRAM][FUZZER] < fuzzer2_execs_unit:
-                final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME)
+                final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME) * 60
                 k = math.ceil(final_execs / fuzzer2_execs_unit)
                 assert(k <= TOTAL_TIME)
                 plt.text(k, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
