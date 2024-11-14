@@ -13,22 +13,22 @@ import math
 TOTAL_TIME = 60 * 60 # 单位分钟
 SPLIT_UNIT = 1  # 每隔 1 分钟
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
-FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1", "seeds_disable_empty_k_1", "seeds_disable_full_k_1"]
-TARGETS = ["php", "libsndfile", "libpng", "libtiff", "libxml2", "sqlite3", "lua"]
+FUZZERS = ["aflplusplus", "pathfuzzeremptyk1", "pathfuzzerfullk1", "pathfuzzernewk1", "pathfuzzernewerk1"]
+TARGETS = ["base64", "md5sum", "uniq", "who", "libpng", "libsndfile", "php", "sqlite3", "lua", "libxml2", "libtiff", "openssl"]
 # 表明这个脚本所运行的文件夹
 WORKDIR = "cache"
 # 重复次数
-REPEAT=2
+REPEAT=1
 # 这次绘图命名的特殊后缀，比如 _empty or _full 之类的
 SPECIFIC_SUFFIX = "_all"
 # 决定绘制哪些图，不绘制哪些图
 draw_configure = {
     "crash_time"     : True,
-    "crash_execs"    : False,
+    "crash_execs"    : True,
     "seed_time"      : True,
-    "seed_execs"     : False,
+    "seed_execs"     : True,
     "edge_time"      : True,
-    "edge_execs"     : False,
+    "edge_execs"     : True,
     "throughput_time": True,
 }
 

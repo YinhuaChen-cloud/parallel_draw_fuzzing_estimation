@@ -161,17 +161,93 @@ for PROGRAM in PROGRAMS:
 print("============================= finish drawing seed_time graph part =============================")
 sys.stdout.flush()
 
+############################################### 4. 绘制 crash_time ##################################################
+
+TOTAL_TIME = 60 * 60 # 单位分钟
+
+x = [i for i in range(0, TOTAL_TIME, 10)]
+x.append(TOTAL_TIME)
+
+for PROGRAM in PROGRAMS:
+    plt.figure()  # 创建一个新的图形
+
+    for FUZZER in FUZZERS:
+        for TARGET in TARGETS:
+
+            path = FUZZER + "/" + TARGET
+            thePROGRAMS = getsubdir(path)
+
+            for thePROGRAM in thePROGRAMS:
+                if thePROGRAM != PROGRAM:
+                    continue
+
+                # 运行到这里，说明找到正确的 TARGET 了
+                path = FUZZER + "/" + TARGET + "/" + PROGRAM
+                TIMES = getsubdir(path)
+                assert(len(TIMES) == REPEAT)
+
+                for TIME in TIMES:
+                    assert(int(TIME) < REPEAT)
+
+                ys = []
+                for TIME in TIMES:
+                    path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME
+                    allsubdirs = getsubdir(path)
+                    allsubdirs = [subdir for subdir in allsubdirs if re.match(r'^corpus\.\d+$', subdir)]
+
+                    y = [0] * len(x)
+
+                    for time in x:
+                        files = []
+                        if os.path.isdir(path + "/" + "corpus." + str(time*60)):
+                            files = getfiles(path + "/" + "corpus." + str(time*60))
+                        index = int(time/10)
+                        y[index] = len(files)
+                    
+                    for time in x:
+                        index = int(time/10)
+                        if(y[index] == 0 and index != 0):
+                            y[index] = y[index-1]
+                        
+                    ys.append(y)
+
+                try_times = len(TIMES)
+                avg_y = [0] * len(x)
+                for i in range(len(x)):
+                    for k in range(try_times):
+                        avg_y[i] += ys[k][i]
+                    avg_y[i] = avg_y[i] / try_times
+                
+                plot_x = [ (i/60) for i in x ]
+                plot_y = avg_y
+                # 绘制图形
+                plt.plot(plot_x, plot_y, linestyle='-', label=FUZZER) 
+                # 添加图例
+                plt.legend()
+
+    # CHANGE: 绘制其它图片，这里的标题可能不一样
+    # 添加标题和标签
+    # 注意：edges 最好使用 min 作为横轴单位！！！
+    plt.title(PROGRAM + " seed-time graph")
+    plt.xlabel('time(h)')
+    plt.ylabel("# seeds")
+    # 保存图形为文件: 每个 PROGRAM 画一张图
+    plt.savefig('seed_time_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+    print("finish drawing seed_time_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
+    sys.stdout.flush()
+
+    plt.close()  # 关闭图形
+
+print("============================= finish drawing seed_time graph part =============================")
+sys.stdout.flush()
+
 exit(0)
-
-
-
-
 
 # x = []
 # for subdir in allsubdirs:
 #     found_numbers = re.findall(r'\d+', subdir)  # 查找所有数字
 #     assert(len(found_numbers) == 1)
-#     x.extend(found_numbers)  # 将找到的数字添加到新列表中
+#     x.extend(found_numbers)  # 将找到的数字加到新列表中
 # # 转换为整数列表
 # x = [int(integer) for integer in x]
 # x = sorted(x)

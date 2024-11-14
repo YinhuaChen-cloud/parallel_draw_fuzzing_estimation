@@ -17,24 +17,22 @@ import numpy as np
 execs_unit_dict = None
 
 ############################################### 0. 配置部分         ##################################################
-TOTAL_TIME = 48 * 60 # 单位分钟
+TOTAL_TIME = 9 * 60 # 单位分钟
 SPLIT_UNIT = 1  # 每隔 1 分钟
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
 # 需要收集的数据
-FUZZERS = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_empty_path_k_2", "path_fuzzer_empty_path_k_4", "path_fuzzer_empty_path_k_8", \
-    "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
+FUZZERS = ["aflplusplus", "pathfuzzeremptyk1", "pathfuzzerfullk1", "pathfuzzernewk1", "seedsdisableemptyk1", "seedsdisablefullk1", "seedsdisablenewk1"]
 # 需要绘制的图片的分类
-FUZZERS_1 = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_full_path_k_1"]
-FUZZERS_2 = ["aflplusplus", "path_fuzzer_empty_path_k_1", "path_fuzzer_empty_path_k_2", "path_fuzzer_empty_path_k_4", "path_fuzzer_empty_path_k_8", \
-    "path_fuzzer_full_path_k_1", "path_fuzzer_full_path_k_2", "path_fuzzer_full_path_k_4", "path_fuzzer_full_path_k_8"]
-TARGETS = ["php", "libsndfile", "libtiff", "sqlite3", "lua", "libpng", "libxml2"]
+FUZZERS_1 = ["aflplusplus", "pathfuzzeremptyk1", "pathfuzzerfullk1", "pathfuzzernewk1", "seedsdisableemptyk1", "seedsdisablefullk1", "seedsdisablenewk1"]
+FUZZERS_2 = ["aflplusplus", "pathfuzzeremptyk1", "pathfuzzerfullk1", "pathfuzzernewk1", "seedsdisableemptyk1", "seedsdisablefullk1", "seedsdisablenewk1"]
+TARGETS = ["libpng", "lua", "php", "sqlite3"]
 # FUZZERS = ["aflplusplus", "path_fuzzer_empty_path", "path_fuzzer_full_path", "cov_trans_fuzzer_empty_path", "cov_trans_fuzzer_full_path"]
 # TARGETS = ["base64", "md5sum", "uniq", "who"]
 # 表明这个脚本所运行的文件夹
 WORKDIR = "cache"
 # WORKDIR = "workdir_1d_REPEAT4_LAVAM"
 # 重复次数
-REPEAT=2
+REPEAT=3
 # 这次绘图命名的特殊后缀，比如 _empty or _full 之类的
 SPECIFIC_SUFFIX_1 = "_only1"
 SPECIFIC_SUFFIX_2 = "_all"
@@ -147,8 +145,8 @@ def getEdges(put, program, filename, mapfile, task_count):
         assert(0)
 
     # 打印命令的标准输出
-    # print("标准输出:")
-    # print(result.stdout)
+    print("标准输出:")
+    print(result.stdout)
 
     with open(mapfile, 'r') as the_mapfile:
         for line in the_mapfile:
