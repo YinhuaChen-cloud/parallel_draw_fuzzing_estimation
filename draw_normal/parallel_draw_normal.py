@@ -145,43 +145,36 @@ sys.stdout.flush()
 for result in results:
     result.wait()
 
-# TODO: check 到这里
+############################################### 3. 统计各程序 max_execs   ##################################################
+# 这一部分的目的，是为了确认各个 PROGRAM 的执行次数横轴图的最大执行次数
+# 因为不同 FUZZERS 执行速率不一样，所以哪怕运行相同的时间，最后产生的最大执行次数可能差很多
+# 我这里是取执行速率最慢的 FUZZERS 的最大执行次数，作为绘图的最大执行次数
 
-############################################### 额外：统计各程序 max_execs   ##################################################
-# 每个 PROGRAM 取它最小的 max_execs
+# 这个字典的 key 是 PROGRAM, value 是该 PROGRAM 在所有 FUZZERS 中最小的 max_execs
 max_execs_dict = {}
+
+# 统计每个 PROGRAM 在所有 FUZZERS 中最小的 max_execs，存放于 max_execs_dict 中
 for PROGRAM in PROGRAMS:
-    # 每个 PROGRAM，需要取 REPEAT x #FUZZERS 个 max_execs，然后取最小的
-    the_max_execs = -1
-    the_max_time  = -1
-    max_execs_list = []
+    # 找到当前 PROGRAM 在所有 FUZZERS 中最小的 max_execs
+    max_execs = float('inf')
     for FUZZER in FUZZERS:
-        # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，获取 dfs
+        # 在 results 列表中找到 当前 PROGRAM-FUZZER 的所有数据，存放于 dfs 列表中
         dfs = []
         for result in results:
             fuzz_result = result.get()
             if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
                 continue
             dfs.append(fuzz_result[4])
+        # 收集完后，一共能收集到 REPEAT 个 df
         assert(len(dfs) == REPEAT)
-        # 从 dfs 中获取 max_execs
+        # 在 dfs 列表中找到最小的 max_execs
         for df in dfs:
-            if df["total_execs"].max() > the_max_execs:
-                the_max_execs = df["total_execs"].max() 
-                the_max_time = df["# relative_time"].max()
-            # 只有时间长度达到目标的统计数据才会被加入 max_execs_list，这样可以有效防止死循环的 fuzzing 影响全局
-            if (math.ceil(df["# relative_time"].max() / 60) >= SPLIT_NUM-1):
-                max_execs_list.append(df["total_execs"].max())
-            # max_execs_list.append(df["total_execs"].max())
-    # 此时，max_execs_list 的长度 <= REPEAT x len(FUZZERS)
-    assert(len(max_execs_list) <= len(FUZZERS) * REPEAT)
-    # assert(len(max_execs_list) == len(FUZZERS) * REPEAT)
-    # 这个就是这个程序有效的最大的 execs (最小的 max_execs)
-    if (len(max_execs_list) > 0):
-        max_execs = min(max_execs_list)
-    else:
-        max_execs = TOTAL_TIME * 60 * int(the_max_execs/the_max_time)
+            if df["total_execs"].max() < max_execs:
+                max_execs = df["total_execs"].max() 
+    # 把这个 PROGRAM 在所有实验中的最小的 max_execs 存放于 max_execs_dict 字典中
     max_execs_dict[PROGRAM] = max_execs
+
+# TODO: check 到这里
 
 ############################################### 额外：定义绘图函数   ##################################################
 # name: 决定 y 轴和图的名字
