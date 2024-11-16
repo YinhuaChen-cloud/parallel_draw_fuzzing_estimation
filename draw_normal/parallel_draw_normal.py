@@ -174,51 +174,59 @@ for PROGRAM in PROGRAMS:
     # 把这个 PROGRAM 在所有实验中的最小的 max_execs 存放于 max_execs_dict 字典中
     max_execs_dict[PROGRAM] = max_execs
 
-# TODO: check 到这里
-
-############################################### 额外：定义绘图函数   ##################################################
-# name: 决定 y 轴和图的名字
-# colname: 关心的那一列的列名
-# accumulate: 这一列是否属于 “积累” 属性？
+############################################### 4. 定义绘图函数   ##################################################
+# name: 决定 y轴 和图的名字
+# colname: df中和 y轴 相应那一列的列名
+# accumulate: 这一列是否属于 “积累” 属性？ (crash, seed 属于积累属性, Throughput 不属于)
+# 或者说，种子数量、crash数量、bug 数量这些是可以积累的，但是 “速度” 是不可以积累的
+# 路程是可以积累的，速度是不能积累的。学习的知识是可以积累的，学习的速度是不能积累的
+# 这就是 “积累” 属性
 def draw_time(name: str, colname: str, accumulate: bool):
+    # 每一个 PROGRAM 绘制一张图 (FUZZERS 是这张图上的 legend)
     for PROGRAM in PROGRAMS:
 
         plt.figure()  # 创建一个新的图形
 
         for FUZZER in FUZZERS:
-            # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，获取 dfs
+            # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，储存在 dfs 列表中
             dfs = []
             for result in results:
                 fuzz_result = result.get()
                 if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
                     continue
                 dfs.append(fuzz_result[4])
+            # 验证 REPEAT 是否和 dfs 收集到的数量一致
             assert(len(dfs) == REPEAT)
-            # CHANGE: 绘制其它图片，提取的数据要变化
-            # 处理 dfs 的数据，提取出 crash-time 数组，总共 REPEAT 个
+            # 每个 df 都是一个 PROGRAM-FUZZER-TIME 的 plot_data，可以绘制成一条线
+            # 我们要对这些 df 的值取平均
+            # slot_list 就是用来存放绘图数据数组的列表
             slot_list = []
             for df in dfs:
+                # 用来绘图的数据数组
                 slot = [0] * SPLIT_NUM
-                # 按照相应单位，把 df 中的数据转移到数组上
-                # 先给 df 排序
+                # 因为是 draw_time 先给 df 按照时间排序排序
                 df = df.sort_values("# relative_time")
                 # 遍历排序后的数据
                 for _, row in df.iterrows():
+                    # 取得这一行的时间(单位：秒)
                     time_s = int(row["# relative_time"])
+                    # 把时间转为分钟，随后放入 slot 中相应的位置
                     k = math.ceil(time_s / 60)
+                    # 部分实验可能会运行超过规定的时间，我们把超过规定时间的数据忽略掉
                     if k < SPLIT_NUM:
                         slot[k] = int(row[colname])
-                # CHANGE: 绘制其它图片，对于 slot[i] == 0 的处理方式可能不一样
-                # 检查一下，看看是否有中间为 0 的情况，若有，补上
+                # 因为我们计算 k 是向上取整，所以元素0必须为0
                 assert(slot[0] == 0)
+                # 如果这个属性是 “积累属性”，那么就需要填补 slot 中为 0 的部分
                 if accumulate:
                     for i in range(SPLIT_NUM):
                         if i > 0 and slot[i] == 0:
                             slot[i] = slot[i-1]
                 slot_list.append(slot)
+            # 验证，slot_list 的长度必须等于 REPEAT
             assert(len(slot_list) == REPEAT)
-            # CHANGE: 绘制其它图片，对小数点的处理方式可能不一样
-            # 求平均，改成向上取整
+            # 求平均，向上取整 (向上取整的原因：如果 REPEAT=5，有一个实验找到了1个 bug，
+            # 剩下4个都没找到，我们希望最后平均出来的 bug 是1而不是0)
             slot_avg = [0] * SPLIT_NUM
             for i in range(SPLIT_NUM):
                 for k in range(REPEAT):
@@ -226,8 +234,9 @@ def draw_time(name: str, colname: str, accumulate: bool):
                 slot_avg[i] /= REPEAT
                 slot_avg[i] = math.ceil(slot_avg[i])
 
-            # CHANGE: 绘制其它图片，这里的 x 轴可能不一样
+            # 有了 slot_avg 就能绘图了
             # 开始绘图
+            # x 轴以小时(h) 为单位，我们的 slot_avg 每一个下标都是分钟 min，所以这里要除以 60
             x = [ (i/60) for i in range(SPLIT_NUM) ]
             y = slot_avg
             # 绘制图形
@@ -235,67 +244,82 @@ def draw_time(name: str, colname: str, accumulate: bool):
             # 添加图例
             plt.legend()
 
-        # CHANGE: 绘制其它图片，这里的标题可能不一样
-        # 添加标题和标签
-        # 注意：edges 最好使用 min 作为横轴单位！！！
+        # 这个 PROPGRAM 绘制完毕后，要命名
+        # 设置标题
         plt.title(PROGRAM + " " + name + '-time graph')
+        # 设置 x 轴
         plt.xlabel('time(h)')
+        # 设置 y 轴
         plt.ylabel('# ' + name)
-        # 保存图形为文件: 每个 PROGRAM 画一张图
-        plt.savefig(name + '_time_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+        # 设置文件名和文件类型 (png, svg, pdf ....)
+        plt.savefig(name + '_time_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg') 
+        # 打印日志标识成功绘制这个图片
         print("finish drawing " + name + "_time_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
         sys.stdout.flush()
+        # 关闭图形，节约内存
+        plt.close()  
 
-        plt.close()  # 关闭图形
-
+    # 打印日志：成功绘制完某一类型的图片
     print("============================= finish drawing " + name + "_time graph part =============================")
     sys.stdout.flush()
 
-# name: 决定 y 轴和图的名字
-# colname: 关心的那一列的列名
-# accumulate: 这一列是否属于 “积累” 属性？
+# name: 决定 y轴 和图的名字
+# colname: df中和 y轴 相应那一列的列名
+# accumulate: 这一列是否属于 “积累” 属性？ (crash, seed 属于积累属性, Throughput 不属于)
+# 或者说，种子数量、crash数量、bug 数量这些是可以积累的，但是 “速度” 是不可以积累的
+# 路程是可以积累的，速度是不能积累的。学习的知识是可以积累的，学习的速度是不能积累的
+# 这就是 “积累” 属性
 def draw_execs(name: str, colname: str, accumulate: bool):
+    # 每一个 PROGRAM 绘制一张图 (FUZZERS 是这张图上的 legend)
     for PROGRAM in PROGRAMS:
 
         plt.figure()  # 创建一个新的图形
-        # 获取这个程序的 max_execs，计算 execs_unit
+        # 获取这个程序的 max_execs，并计算 execs_unit
+        # 后续每一下标表示 “经历了一个 execs_unit” 这么多的执行次数
         max_execs = max_execs_dict[PROGRAM]
         execs_unit = (max_execs / int(TOTAL_TIME / SPLIT_UNIT))
 
         for FUZZER in FUZZERS:
-            # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，获取 dfs
+            # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，储存在 dfs 列表中
             dfs = []
             for result in results:
                 fuzz_result = result.get()
                 if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
                     continue
                 dfs.append(fuzz_result[4])
+            # 验证 REPEAT 是否和 dfs 收集到的数量一致
             assert(len(dfs) == REPEAT)
-            # CHANGE: 绘制其它图片，提取的数据要变化
-            # 处理 dfs 的数据，提取出 crash-execs 数组，总共 REPEAT 个
+            # 每个 df 都是一个 PROGRAM-FUZZER-TIME 的 plot_data，可以绘制成一条线
+            # 我们要对这些 df 的值取平均
+            # slot_list 就是用来存放绘图数据数组的列表
             slot_list = []
             for df in dfs:
+                # 用来绘图的数据数组
                 slot = [0] * SPLIT_NUM
-                # 按照相应单位，把 df 中的数据转移到数组上
-                # 先给 df 排序
+                # 因为是 draw_execs 先给 df 按照执行次数排序
                 df = df.sort_values("total_execs")
                 # 遍历排序后的数据
                 for _, row in df.iterrows():
+                    # 取得这一行的执行次数
                     execs = int(row["total_execs"])
+                    # 根据 execs_unit 计算下标，向上取整
                     k = math.ceil(execs / execs_unit)
+                    # 部分 plot_data 可能含有远超于 SPLIT_NUM 的数据，它们不会被
+                    # 绘制进图片了，抛弃掉
                     if k < SPLIT_NUM:
                         slot[k] = int(row[colname])
-                # CHANGE: 绘制其它图片，对于 slot[i] == 0 的处理方式可能不一样
-                # 检查一下，看看是否有中间为 0 的情况，若有，补上
+                # 因为我们计算 k 是向上取整，所以元素0必须为0
                 assert(slot[0] == 0)
+                # 如果这个属性是 “积累属性”，那么就需要填补 slot 中为 0 的部分
                 if accumulate:
                     for i in range(SPLIT_NUM):
                         if i > 0 and slot[i] == 0:
                             slot[i] = slot[i-1]
                 slot_list.append(slot)
+            # 验证，slot_list 的长度必须等于 REPEAT
             assert(len(slot_list) == REPEAT)
-            # CHANGE: 绘制其它图片，对小数点的处理方式可能不一样
-            # 求平均，改成向上取整
+            # 求平均，向上取整 (向上取整的原因：如果 REPEAT=5，有一个实验找到了1个 bug，
+            # 剩下4个都没找到，我们希望最后平均出来的 bug 是1而不是0)
             slot_avg = [0] * SPLIT_NUM
             for i in range(SPLIT_NUM):
                 for k in range(REPEAT):
@@ -303,8 +327,9 @@ def draw_execs(name: str, colname: str, accumulate: bool):
                 slot_avg[i] /= REPEAT
                 slot_avg[i] = math.ceil(slot_avg[i])
 
-            # CHANGE: 绘制其它图片，这里的 x 轴可能不一样
+            # 有了 slot_avg 就能绘图了
             # 开始绘图
+            # x 轴表示执行次数
             x = [ i*execs_unit for i in range(SPLIT_NUM) ]
             y = slot_avg
             # 绘制图形
@@ -312,47 +337,49 @@ def draw_execs(name: str, colname: str, accumulate: bool):
             # 添加图例
             plt.legend()
 
-        # CHANGE: 绘制其它图片，这里的标题可能不一样
-        # 添加标题和标签
-        # 注意：edges 最好使用 min 作为横轴单位！！！
+        # 这个 PROPGRAM 绘制完毕后，要命名
+        # 设置标题
         plt.title(PROGRAM + " " + name + '-execs graph')
+        # 设置 x 轴
         plt.xlabel('# execs')
+        # 设置 y 轴
         plt.ylabel('# ' + name)
-        # 保存图形为文件: 每个 PROGRAM 画一张图
+        # 设置文件名和文件类型 (png, svg, pdf ....)
         plt.savefig(name + '_execs_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+        # 打印日志标识成功绘制这个图片
         print("finish drawing " + name + "_execs_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
         sys.stdout.flush()
+        # 关闭图形，节约内存
+        plt.close() 
 
-        plt.close()  # 关闭图形
-
+    # 打印日志：成功绘制完某一类型的图片
     print("============================= finish drawing " + name + "_execs graph part =============================")
     sys.stdout.flush()
 
-############################################### 4. 绘制 crash_time   ##################################################
+############################################### 5. 绘制 crash_time   ##################################################
 if draw_configure["crash_time"]:
     draw_time("crash", "saved_crashes", True)
 
-############################################### 5. 绘制 crash_execs  ##################################################
+############################################### 6. 绘制 crash_execs  ##################################################
 if draw_configure["crash_execs"]:
     draw_execs("crash", "saved_crashes", True)
 
-############################################### 6. 绘制 seed_time    ##################################################
+############################################### 7. 绘制 seed_time    ##################################################
 if draw_configure["seed_time"]:
     draw_time("seed", "corpus_count", True)
 
-############################################### 7. 绘制 seed_execs   ##################################################
+############################################### 8. 绘制 seed_execs   ##################################################
 if draw_configure["seed_execs"]:
     draw_execs("seed", "corpus_count", True)
 
-############################################### 10. 绘制 Throughput  ##################################################
+############################################### 9. 绘制 Throughput  ##################################################
 if draw_configure["throughput_time"]:
     draw_time("execs_per_sec", "execs_per_sec", False)
 
-############################################### 要结束了             ##################################################
+############################################### 10. 要结束了             ##################################################
+# 关闭并行任务池子、退出
 pool.close()
 pool.join()
 exit(0)  
-
-
 
 
