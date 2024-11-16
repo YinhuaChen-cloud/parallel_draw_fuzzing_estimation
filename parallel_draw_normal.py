@@ -10,10 +10,10 @@ import pandas as pd
 import math
 
 ############################################### 0. 配置部分         ##################################################
-TOTAL_TIME = 60 * 60 # 单位分钟
+TOTAL_TIME = 12 * 60 # 单位分钟
 SPLIT_UNIT = 1  # 每隔 1 分钟
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
-FUZZERS = ["aflplusplus", "pathfuzzeremptyk1", "pathfuzzerfullk1", "pathfuzzernewk1", "pathfuzzernewerk1"]
+FUZZERS = ["aflplusplus", "nopathreduction"]
 TARGETS = ["base64", "md5sum", "uniq", "who", "libpng", "libsndfile", "php", "sqlite3", "lua", "libxml2", "libtiff", "openssl"]
 # 表明这个脚本所运行的文件夹
 WORKDIR = "cache"
