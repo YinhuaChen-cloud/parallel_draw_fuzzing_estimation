@@ -44,12 +44,31 @@ SPECIFIC_SUFFIX: 产生的图片文件名后缀
 
 draw_configure: 一个字典，标 True 标识要绘制这种类型的图片，标 False 标识不绘制这种类型的图片
 
+配置完毕后，就可以运行脚本
+
+TODO: 把运行补上
+
 ---
 
-### 大致原理
+### 代码结构和大致原理
 
-这里仅介绍代码的大致结构和原理，具体细节还得看源码
+这里仅介绍代码结构和大致原理，具体细节还得看源码
 
+代码结构分为下面几个
+
+0.配置部分，这部分根据 “使用方法” 一节去配置就可以了
+
+1.验证 fuzzing result 是否有异常。这里做的事情包括：
+- 执行脚本的目录名是否和 WORKDIR 一致
+- 配置中的 FUZZERS 是否在 fuzzing results 中存在
+- 配置中的 TARGETS 是否在 fuzzing results 中存在
+- fuzzing results 中的 PROGRAMS 是否齐全且一致
+
+这一部分其实就是验证 fuzzing results 是否有异常、是否和配置有出入
+
+2.并行读取绘图所需数据(plot_data): 这部分是并行读取 plot_data 数据
+
+TODO: here
 
 ---
 

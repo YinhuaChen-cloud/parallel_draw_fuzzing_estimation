@@ -28,28 +28,28 @@ draw_configure = {
     "throughput_time": True,
 }
 
-################ 根据配置衍生出来的一些全局函数
+############################################### 一些常用常数、函数的定义(尽量别修改) ##############################
+SPLIT_UNIT = 1
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
 
-############################################### 1. 一些函数的定义    ##################################################
-# 定义获取子目录的函数
+# 获取 basedir 下的子目录列表
 def getsubdir(basedir):
     subdirs = [d for d in os.listdir(basedir) 
         if os.path.isdir(os.path.join(basedir, d)) and not d.startswith('.') ]
     return sorted(subdirs)
 
-############################################### 2. 验证部分         ##################################################
-# 首先验证 WORKDIR
+######################################## 1. 验证 fuzzing result 是否有异常 ##################################################
+# 首先验证 WORKDIR是否正确
 current_directory = os.getcwd()
 directory_name = os.path.basename(current_directory)
 assert(directory_name == WORKDIR)
 
-# 验证 FUZZERS 是否都存在
+# 验证配置中的 FUZZERS，是否在 fuzzing result 中都存在
 FUZZERS_real = getsubdir(current_directory)
 for fuzzer in FUZZERS:
     assert(fuzzer in FUZZERS_real)
 
-# 验证 TARGETS 是否在所有 FUZZERS 里都存在
+# 验证配置中的 TARGETS 是否在所有 FUZZERS 里都存在
 TARGETS_list = []
 for FUZZER in FUZZERS:
     TARGETS_list.append(getsubdir(FUZZER))
@@ -58,7 +58,7 @@ for i in range(len(TARGETS_list)):
     for target in TARGETS:
         assert(target in TARGETS_list[i])
 
-# 验证是否所有 PROGRAMS 都一样，同时获取 PROGRAMS 列表
+# 验证所有的 TARGETS，是否 PROGRAMS 齐全
 PROGRAMS_list = []
 
 for FUZZER in FUZZERS:
@@ -74,69 +74,78 @@ for i in range(len(PROGRAMS_list)):
 
 PROGRAMS = PROGRAMS_list[0]
 
-############################################### 3. 读取所有 plot_data ##################################################
-# 一个全局变量，被 multiprocessing 所有进程共享，可以加锁
+############################################### 2. 并行读取绘图所需数据 (plot_data) ##################################################
+
+# 一个全局变量，被所有并行任务共享，标识已经完成的任务数量
 finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
 
-"""用来收集 plot_data 的工作函数 --- start"""
+# 被并行执行的函数 --------------------------------------------------------------- start
 def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME, task_count):
-    # 使用 pandas.DataFrame 读取 plot_data 文件
+    # 当前这个 PROGRAM-FUZZER-TIME 所对应的 plot_data 文件路径
     plot_data_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/default/plot_data"
+    # plot_data 是 csv 格式的，所以我们可以使用 pandas.DataFrame 的 csv API 读取它
     df = pd.read_csv(plot_data_path)
-    # 对所有列名进行 strip() 处理
+    # 把所有列表的首尾空白字符去掉
     df.columns = df.columns.str.strip()
 
-    # 打印表示目前任务已完成(需要加锁)
-    # global finished_tasks
+    # 打印信息，表示这个数据收集任务已完成
     with finished_tasks.get_lock():
         finished_tasks.value += 1
         print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME} data collect")
         sys.stdout.flush()
-    # 返回存储数据的 DataFrame
+    # 返回存储数据的 DataFrame，也就是 df，前面的几个元素是为了标识这个 df 属于哪个 PROGRAM-FUZZER-TIME
     return (FUZZER, TARGET, PROGRAM, TIME, df)
-"""用来收集 plot_data 的工作函数 --- end"""
+# 被并行执行的函数 --------------------------------------------------------------- end
 
-# 获取 CPU cores 总数
+# 获取当前机器上的 CPU cores 总数，方便后续并行操作
 num_cores = multiprocessing.cpu_count()
 print(f'CPU 核心数量: {num_cores}')
 sys.stdout.flush()
 
 # 创建一个进程池，池中进程的数量等于 CPU 核心数量
 pool = multiprocessing.Pool(num_cores)
-# 储存结果的队列
+
+# 储存收集数据结果的队列
 results = []
-# 创建任务列表，任务数量 = len(PROGRAMS) * REPEAT_TIMES
-# 任务ID为：FUZZER + TARGET + PROGRAM + REPEAT
+
 # 任务数计数器，也可以叫任务序号计数器
 task_count = 0
+
+# 为每一个 program-fuzzer-repeat_time 收集 plot_data 数据
 for PROGRAM in PROGRAMS:
     for FUZZER in FUZZERS:
-        # 已知这些 TARGETS 里有且仅有一个 TARGET 包含目标 PROGRAM
-        for TARGET in TARGETS:
+        # 收集这个 PROGRAM-FUZZER 的所有 REPEAT_times 的 plot_data 数据
 
+        # 找到包含当前 PROGRAM 的 TARGETS
+        for TARGET in TARGETS:
             path = FUZZER + "/" + TARGET
             thePROGRAMS = getsubdir(path)
             for thePROGRAM in thePROGRAMS:
                 if thePROGRAM != PROGRAM:
                     continue
-                # 运行到这里，说明找到正确的 TARGET 了
+
+                # 验证 fuzzing result 的 repeat_times 是否和我们的 0.配置部分 一致
                 path = FUZZER + "/" + TARGET + "/" + PROGRAM
                 TIMES = getsubdir(path)
                 assert(len(TIMES) == REPEAT)
-
                 for TIME in TIMES:
                     assert(int(TIME) < REPEAT)
 
+                # 分配一个 CPU cores，让它收集当前 PROGRAM-FUZZER-TIME 的 plot_data 信息，结果存放于 results 列表
                 for TIME in TIMES:
                     result = pool.apply_async(collect_data_worker, (FUZZER, TARGET, PROGRAM, TIME, task_count))
                     task_count += 1
                     results.append(result)
 
-# 等待所有异步任务完成
+# 打印看看一共有多少个并行任务在运行
 print(f"================== There are {len(results)} data collect tasks in total ==================")
 sys.stdout.flush()
+
+# 等待所有并行任务结束
 for result in results:
     result.wait()
+
+# TODO: check 到这里
 
 ############################################### 额外：统计各程序 max_execs   ##################################################
 # 每个 PROGRAM 取它最小的 max_execs
@@ -341,14 +350,6 @@ if draw_configure["seed_time"]:
 ############################################### 7. 绘制 seed_execs   ##################################################
 if draw_configure["seed_execs"]:
     draw_execs("seed", "corpus_count", True)
-
-############################################### 8. 绘制 edge_time    ##################################################
-if draw_configure["edge_time"]:
-    draw_time("edge", "edges_found", True)
-
-############################################### 9. 绘制 edge_execs   ##################################################
-if draw_configure["edge_execs"]:
-    draw_execs("edge", "edges_found", True)
 
 ############################################### 10. 绘制 Throughput  ##################################################
 if draw_configure["throughput_time"]:
