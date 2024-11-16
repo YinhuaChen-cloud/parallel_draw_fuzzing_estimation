@@ -46,7 +46,16 @@ draw_configure: 一个字典，标 True 标识要绘制这种类型的图片，�
 
 配置完毕后，就可以运行脚本
 
-TODO: 把运行补上
+假设我们用来跑 fuzzing 实验的 experiments architecture 是基于 MAGMA benchmark 的，那么运行完实验后，在 \<magma-root-dir\>/tools/captaion 下应该有一个 workdir 目录，这个目录存放着 fuzzing results。如果是我修改过的版本，那么 fuzzing 结果存在于 workdir/cache 文件夹内。
+
+运行方法如下：
+```bash
+cp parallel_draw_normal.py \<magma-root-dir\>/tools/captaion/workdir/cache
+cd \<magma-root-dir\>/tools/captaion/workdir/cache
+python3 parallel_draw_normal.py 
+```
+
+日志打印完毕后，应该在 \<magma-root-dir\>/tools/captaion/workdir/cache 目录下能看到一堆图片文件
 
 ---
 
