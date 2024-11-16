@@ -11,6 +11,8 @@ import math
 
 ############################################### 0. 配置部分         ##################################################
 TOTAL_TIME = 12 * 60 # 单位分钟
+SPLIT_UNIT = 1  # 每隔 1 分钟
+SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
 FUZZERS = ["aflplusplus", "nopathreduction"]
 TARGETS = ["base64", "md5sum", "uniq", "who", "libpng", "libsndfile", "php", "sqlite3", "lua", "libxml2", "libtiff", "openssl"]
 # 表明这个脚本所运行的文件夹
@@ -25,11 +27,10 @@ draw_configure = {
     "crash_execs"    : True,
     "seed_time"      : True,
     "seed_execs"     : True,
+    "edge_time"      : True,
+    "edge_execs"     : True,
     "throughput_time": True,
 }
-
-################ 根据配置衍生出来的一些全局函数
-SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
 
 ############################################### 1. 一些函数的定义    ##################################################
 # 定义获取子目录的函数
