@@ -212,6 +212,10 @@ class InputFile:
 
 # 被并行执行的函数 --------------------------------------------------------------- start
 def edge_data_collector(FUZZER, TARGET, PROGRAM, TIME, task_count):
+
+    print(f"start {FUZZER}-{TARGET}-{PROGRAM}-{TIME} data collect")
+    sys.stdout.flush()
+
     df = None
     try:
         # 第一步：把 crash 和 queue 下所有文件读取出来，去掉包含 "+pat" 的文件，随后按照 "time" 排序
@@ -296,7 +300,7 @@ def edge_data_collector(FUZZER, TARGET, PROGRAM, TIME, task_count):
         }
         df = pd.DataFrame(data)
         # relative_time 这一列是 ms 为单位，把它转为 s 为单位
-        df['# relative_time'] = int(df['# relative_time'] / 1000)
+        df['# relative_time'] = df['# relative_time'] // 1000
 
         print(df)
         sys.stdout.flush()
