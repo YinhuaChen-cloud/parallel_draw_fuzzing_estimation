@@ -92,7 +92,6 @@ for i in range(len(PROGRAMS_list)):
 PROGRAMS = PROGRAMS_list[0]
 
 ############################################### 2. 并行读取绘图所需数据 (edges) ##################################################
-exit(0)
 # LAVAM commands
 # afl-fuzz -i corpus/base64 -o findings -m none -c cmplog/base64 -d -- afl/base64 -d @@
 # afl-fuzz -i corpus/md5sum -o findings -m none -c cmplog/md5sum -d -- afl/md5sum -c @@
@@ -216,6 +215,12 @@ finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
 
 ##### <---------------- we are here!!!
 
+class InputFile:
+    def __init__(self, time: int, execs: int, edges: int):
+        self.time = time
+        self.execs = execs
+        self.edges = edges
+
 # 被并行执行的函数 --------------------------------------------------------------- start
 def edge_data_collector(FUZZER, TARGET, PROGRAM, TIME, task_count):
     # 第一步：把 crash 和 queue 下所有文件读取出来，去掉包含 "+pat" 的文件，随后按照 "time" 排序
@@ -224,181 +229,55 @@ def edge_data_collector(FUZZER, TARGET, PROGRAM, TIME, task_count):
     # class 包含：time, execs, triggered_edges
     # 第三步，根据第二部得到的 class 列表，构造一个 dataFrame，随后返回这个 dataframe
 
-    edge_time_slot  = [0] * SPLIT_NUM
-    edge_execs_slot_1 = [0] * SPLIT_NUM
-    edge_execs_slot_2 = [0] * SPLIT_NUM
-
-    edge_time_slot_dict = [{} for _ in range(SPLIT_NUM)] 
-    edge_execs_slot_dict_1 = [{} for _ in range(SPLIT_NUM)] 
-    edge_execs_slot_dict_2 = [{} for _ in range(SPLIT_NUM)] 
-
-    crashdir = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/crashes/"
-    queuedir = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/queue/"
     # 无论何时，用来计算触发 edges 的 PUT 都是同一个
-    put = "aflplusplus" + "/" + TARGET + "/" + thePROGRAM + "/0/afl/" + thePROGRAM
+    put = "aflplusplus" + "/" + TARGET + "/" + PROGRAM + "/0/afl/" + PROGRAM
 
-    # 获取 crashes 文件夹下的所有文件
-    files = getfiles(crashdir)
-    # 获取当前时间并以自定义格式显示
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print("curtime:" + str(current_time) + " PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + ", len(crash_files) = " + str(len(files)) + " taskcount = " + str(task_count))
-    sys.stdout.flush()
-
-    # 统计 crashes 文件夹下所有文件触发的 edges
-    for crash_file in files:
-        match_time  = re.findall(r"time:(\d+)", crash_file)
-        match_execs = re.findall(r"execs:(\d+)", crash_file)
-        assert(len(match_time) < 2)
-        assert(len(match_execs) < 2)
-
-        # 过滤掉非常规文件
+    # 第一步：把 crash 和 queue 下所有文件读取出来，去掉包含 "+pat" 的文件，随后按照 "time" 排序
+    # 加个 assert()，表示一个列表里绝对没有两个文件的 time 是相等的
+    # 读取 crash 和 queue 文件夹下所有文件
+    crashdir = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/default/crashes/"
+    queuedir = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/default/queue/"
+    crashfiles = getfiles(crashdir)
+    queuefiles = getfiles(queuedir)
+    files = crashfiles + queuefiles
+    # 去掉包含 "+pat" 文件，以及非常规文件，比如 README.txt
+    filterfiles = []
+    for file in files:
+        pat_match = re.findall(r"\+pat", file)
+        assert(len(pat_match) < 2)
+        if pat_match:
+            continue
+        match_time  = re.findall(r"time:(\d+)", file)
+        match_execs = re.findall(r"execs:(\d+)", file)
+        # 过滤掉非常规文件，比如 README.txt
         if (not match_time) or (not match_execs):
             continue
-
-        assert(match_time and match_execs)
-
-        # 如果是 +pat 种子，那么跳过，因为它必不增加 edge-cov 
-        pat_match = re.findall(r"\+pat", crash_file)
-        assert(len(pat_match) < 2)
-        if pat_match and (not plusPAT):
-            continue
-
-        # 获取这个文件触发的 edges
-        triggered_edges_set = getEdges(put, thePROGRAM, crashdir + crash_file, "mapfile" + str(task_count), task_count)
-        # 统计时间，放入 edge_time_slot_dict
-        crash_time = ms_to_min(int(match_time[0]))
-        if crash_time < SPLIT_NUM:
-            edge_time_slot_dict[crash_time].update(triggered_edges_set)
-        # 统计执行次数，放入 edge_execs_slot_dict_1 和 edge_execs_slot_dict_2
-        crash_execs = int(match_time[0])
-        k = math.ceil(crash_execs / fuzzer1_execs_unit)
-        if k < SPLIT_NUM:
-            edge_execs_slot_dict_1[k].update(triggered_edges_set)
-        k = math.ceil(crash_execs / fuzzer2_execs_unit)
-        if k < SPLIT_NUM:
-            edge_execs_slot_dict_2[k].update(triggered_edges_set)
-
-    # 获取当前时间并以自定义格式显示
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print("curtime:" + str(current_time) + " PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + " just finish collect crash data")
-    sys.stdout.flush()
-
-    # 再获取 seeds 的 edges
-    files = getfiles(queuedir)
-    # 获取当前时间并以自定义格式显示
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print("curtime:" + str(current_time) + " PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + ", len(seedfiles) = " + str(len(files)) + " taskcount = " + str(task_count))
-    sys.stdout.flush()
-
-    # 统计 queue 文件夹下所有文件触发的 edges
-    for seed_file in files:
-        match_time  = re.findall(r"time:(\d+)", seed_file)
-        match_execs = re.findall(r"execs:(\d+)", seed_file)
         assert(len(match_time) < 2)
         assert(len(match_execs) < 2)
+        time_ms = int(match_time[0])
+        execs = int(match_execs[0])
+        inputfile = InputFile(time=time_ms, execs=execs, edges=0)
+        filterfiles.append(inputfile)
+    # 按照 time 排序
+    filterfiles.sort(key=lambda x : x.time)
+    # 断言：遍历 filterfiles，看看是否有任意两个元素的 time 相等
+    # 一开始有大量种子是 time 0 的，因为它们本就存在于 corpus 中，这部分要 skip
+    for i in range(len(filterfiles) - 1):
+        assert(filterfiles[i].time == 0 or filterfiles[i].time < filterfiles[i+1].time): 
 
-        # 过滤掉非常规文件
-        if (not match_time) or (not match_execs):
-            continue
+    # 第二步：按照排序的顺序，逐个使用 getEdges 获取触发的 edges，记录数量，维护一个 class
+    # class 包含：time, execs, triggered_edges
 
-        assert(match_time and match_execs)
+    # 第三步，根据第二部得到的 class 列表，构造一个 dataFrame，随后返回这个 dataframe
 
-        # 如果是 +pat 种子，那么跳过，因为它必不增加 edge-cov 
-        pat_match = re.findall(r"\+pat", seed_file)
-        assert(len(pat_match) < 2)
-        if pat_match and (not plusPAT):
-            continue
-
-        # 获取这个文件触发的 edges
-        triggered_edges_set = getEdges(put, thePROGRAM, queuedir + seed_file, "mapfile" + str(task_count), task_count)
-        # 统计时间，放入 edge_time_slot_dict
-        seed_time = ms_to_min(int(match_time[0]))
-        if seed_time < SPLIT_NUM:
-            edge_time_slot_dict[seed_time].update(triggered_edges_set)
-        # 统计执行次数，放入 edge_execs_slot_dict_1 和 edge_execs_slot_dict_2
-        seed_execs = int(match_time[0])
-        k = math.ceil(seed_execs / fuzzer1_execs_unit)
-        if k < SPLIT_NUM:
-            edge_execs_slot_dict_1[k].update(triggered_edges_set)
-        k = math.ceil(seed_execs / fuzzer2_execs_unit)
-        if k < SPLIT_NUM:
-            edge_execs_slot_dict_2[k].update(triggered_edges_set)
-
-    # 获取当前时间并以自定义格式显示
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print("curtime:" + str(current_time) + " PROGRAM = " + thePROGRAM + ", FUZZER = " + FUZZER + ", TIME = " + TIME + " just finish collect seed data")
-    sys.stdout.flush()
-                
-    # 先从增量数组转为存量数组
-    for i in range(SPLIT_NUM-1):
-        edge_time_slot_dict[i+1].update(edge_time_slot_dict[i])
-    for i in range(SPLIT_NUM-1):
-        edge_execs_slot_dict_1[i+1].update(edge_execs_slot_dict_1[i])
-    for i in range(SPLIT_NUM-1):
-        edge_execs_slot_dict_2[i+1].update(edge_execs_slot_dict_2[i])
-
-    # 再从字典数组转为 edges 数量数组
-    for i in range(SPLIT_NUM):
-        edge_time_slot[i] = len(edge_time_slot_dict[i])
-    for i in range(SPLIT_NUM):
-        edge_execs_slot_1[i] = len(edge_execs_slot_dict_1[i])
-    for i in range(SPLIT_NUM):
-        edge_execs_slot_2[i] = len(edge_execs_slot_dict_2[i])
-
-    global finished_tasks
     with finished_tasks.get_lock():
         finished_tasks.value += 1
-        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{thePROGRAM}-{TIME} data collect")
+        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME} data collect")
         sys.stdout.flush()
-    return (FUZZER, TARGET, thePROGRAM, TIME, edge_time_slot, edge_execs_slot_1, edge_execs_slot_2)
+    return (FUZZER, TARGET, PROGRAM, TIME, )
 # 被并行执行的函数 --------------------------------------------------------------- end
 
-"""总工作函数"""
-def worker(FUZZER, TARGET, thePROGRAM, TIME, fuzzer1_execs_unit, fuzzer2_execs_unit, task_count):
-    return edge_data_collector(FUZZER, TARGET, thePROGRAM, TIME, fuzzer1_execs_unit, fuzzer2_execs_unit, task_count)
-
-############################################### 额外：统计各程序 avg_execs_unit   ################################################## 审查完成
-# 格式: {key:PROGRAM value: {key: FUZZER value: execs_unit}}
-# 为每对 PROGRAM-FUZZER 找一个 execs_unit，选择所有 TIMES 中最慢/最小的那个
-global execs_unit_dict
-execs_unit_dict = {}
-for PROGRAM in PROGRAMS:
-
-    # 初始化第一个字典
-    execs_unit_dict[PROGRAM] = {}
-
-    for FUZZER in FUZZERS:
-        for TARGET in TARGETS:
-            path = FUZZER + "/" + TARGET
-            thePROGRAMS = getsubdir(path)
-
-            for thePROGRAM in thePROGRAMS:
-                if thePROGRAM != PROGRAM:
-                    continue
-
-                path = FUZZER + "/" + TARGET + "/" + thePROGRAM
-                execs_list = [] # 这个 PROGRAM-FUZZER 对的所有 TIMES 的 avg_execs_unit
-
-                TIMES = getsubdir(path)
-                assert(len(TIMES) == REPEAT)
-
-                for TIME in TIMES:
-                    assert(int(TIME) < REPEAT)
-
-                for TIME in TIMES:
-                    plot_data_file = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/default/plot_data"
-                    df = pd.read_csv(plot_data_file)
-                    # 对所有列名进行 strip() 处理
-                    df.columns = df.columns.str.strip()
-                    assert(not df.empty)
-                    # 取出 "relative_time" 最大的那一行
-                    max_row = df.loc[df["# relative_time"].idxmax()]
-                    avg_execs_unit = (max_row["total_execs"] / max_row["# relative_time"]) * 60 # 每分钟执行次数
-                    execs_list.append(avg_execs_unit)
-
-                execs_unit_dict[PROGRAM][FUZZER] = min(execs_list)
-
-############################################### 3. 并行收集所有 edge 数据，包括 edge_time 和 edge_execs    ################################################## 审查完毕
+# ############################################### 3. 并行收集所有 edge 数据，包括 edge_time 和 edge_execs    ################################################## 审查完毕
 
 # 获取 CPU cores 总数
 num_cores = multiprocessing.cpu_count()
@@ -407,244 +286,287 @@ sys.stdout.flush()
 
 # 创建一个进程池，池中进程的数量等于 CPU 核心数量
 pool = multiprocessing.Pool(num_cores)
+
 # 储存结果的队列
 results = []
-# 创建任务列表，任务数量 = len(PROGRAMS) * REPEAT_TIMES
-# 任务ID为：FUZZER + TARGET + PROGRAM + REPEAT
+
 # 任务数计数器，也可以叫任务序号计数器
 task_count = 0
+
+# 为每一个 program-fuzzer-repeat_time 收集 edges 数据
 for PROGRAM in PROGRAMS:
-
-    # 计算 FUZZERS_1 在这个 PROGRAM 下所需使用的 execs_unit 中位数
-    fuzzer1_execs_unit = -1
-    execs_list = []
-    for fuzzer in FUZZERS_1:
-        execs_list.append(execs_unit_dict[PROGRAM][fuzzer])
-    fuzzer1_execs_unit = np.median(execs_list)
-
-    # 计算 FUZZERS_2 在这个 PROGRAM 下所需使用的 execs_unit 中位数
-    fuzzer2_execs_unit = -1
-    execs_list = []
-    for fuzzer in FUZZERS_2:
-        execs_list.append(execs_unit_dict[PROGRAM][fuzzer])
-    fuzzer2_execs_unit = np.median(execs_list)
-
     for FUZZER in FUZZERS:
-        for TARGET in TARGETS:
+        # 收集这个 PROGRAM-FUZZER 的所有 REPEAT_times 的 edges 数据
 
+        # 找到包含当前 PROGRAM 的 TARGETS
+        for TARGET in TARGETS:
             path = FUZZER + "/" + TARGET
             thePROGRAMS = getsubdir(path)
-
             for thePROGRAM in thePROGRAMS:
                 if thePROGRAM != PROGRAM:
                     continue
-                path = FUZZER + "/" + TARGET + "/" + thePROGRAM
+
+                # 验证 fuzzing result 的 repeat_times 是否和我们的 0.配置部分 一致
+                path = FUZZER + "/" + TARGET + "/" + PROGRAM
                 TIMES = getsubdir(path)
                 assert(len(TIMES) == REPEAT)
-
                 for TIME in TIMES:
                     assert(int(TIME) < REPEAT)
 
+                # 分配一个 CPU cores，让它收集当前 PROGRAM-FUZZER-TIME 的 edges 信息，结果存放于 results 列表
                 for TIME in TIMES:
-                    result = pool.apply_async(worker, (FUZZER, TARGET, thePROGRAM, TIME, fuzzer1_execs_unit, fuzzer2_execs_unit, task_count))
-                    task_count += 1
-                    results.append(result)
+                    try:
+                        result = pool.apply_async(edge_data_collector, (FUZZER, TARGET, PROGRAM, TIME, task_count))
+                        task_count += 1
+                        results.append(result)
+                    except Exception as e:
+                        print(f"Exception caught in main process: {e}")
 
-# 等待所有异步任务完成
-# NOTE: 这里收集到的每个 RESULTS，都是一个 fuzzer-target-time 的 edge_time 数据，横轴是 time，纵轴是 edges
+# 打印看看一共有多少个并行任务在运行
 print(f"================== There are {len(results)} data collect tasks in total ==================")
 sys.stdout.flush()
+
+# 等待所有并行任务结束
 for result in results:
     result.wait()
 
-############################################### 4. 绘制所有图  ##################################################
-# 使用的 execs_unit 选中位数，在前边的画个 X
-for PROGRAM in PROGRAMS:
-
-    # 计算 FUZZERS_1 在这个 PROGRAM 下所需使用的 execs_unit 中位数
-    fuzzer1_execs_unit = -1
-    execs_list = []
-    for fuzzer in FUZZERS_1:
-        execs_list.append(execs_unit_dict[PROGRAM][fuzzer])
-    fuzzer1_execs_unit = np.median(execs_list)
-
-    # 计算 FUZZERS_2 在这个 PROGRAM 下所需使用的 execs_unit 中位数
-    fuzzer2_execs_unit = -1
-    execs_list = []
-    for fuzzer in FUZZERS_2:
-        execs_list.append(execs_unit_dict[PROGRAM][fuzzer])
-    fuzzer2_execs_unit = np.median(execs_list)
-
-    # NOTE: 绘制 FUZZERS1 的 edge_time图
-    plt.figure()  # 创建一个新的图形
-    for FUZZER in FUZZERS_1:
-        # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数组，随后求平均
-        count = 0
-        time_slot_list = [[] for _ in range(REPEAT)]
-        for result in results:
-            fuzz_result = result.get()
-            if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
-                continue
-            time_slot_list[count] = fuzz_result[4]
-            count += 1
-        assert(count == REPEAT)
-        # 求平均，向上取整
-        time_slot_avg  = [0] * SPLIT_NUM
-        for i in range(SPLIT_NUM):
-            for k in range(REPEAT):
-                time_slot_avg[i]  += time_slot_list[k][i]
-            time_slot_avg[i] /= REPEAT
-            time_slot_avg[i] = math.ceil(time_slot_avg[i])
-        # 开始绘图  
-        x = [ (i/60) for i in range(SPLIT_NUM) ]
-        y = time_slot_avg
-        # 绘制图形
-        plt.plot(x, y, linestyle='-', label=FUZZER) 
-        # 添加图例
-        plt.legend()
-    # 添加标题和标签 
-    # 注意：edges 最好使用 min 作为横轴单位！！！
-    plt.title(PROGRAM + ' edge-time graph')
-    plt.xlabel('time(h)')
-    plt.ylabel('# edges')
-    # 保存图形为文件: 每个 PROGRAM 画一张图
-    plt.savefig('edge_time_' + PROGRAM + SPECIFIC_SUFFIX_1 + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
-    print("finish drawing edge_time_" + PROGRAM + SPECIFIC_SUFFIX_1 + ".svg")
-    sys.stdout.flush()
-    plt.close()  # 关闭图形
-
-    # NOTE: 绘制 FUZZERS1 的 edge_execs图
-    plt.figure()  # 创建一个新的图形
-    for FUZZER in FUZZERS_1:
-        # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数组，随后求平均
-        count = 0
-        execs_slot_list  = [[] for _ in range(REPEAT)]
-        for result in results:
-            fuzz_result = result.get()
-            if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
-                continue
-            execs_slot_list[count] = fuzz_result[5]
-            count += 1
-        assert(count == REPEAT)
-        # 求平均，向上取整
-        execs_slot_avg  = [0] * SPLIT_NUM
-        for i in range(SPLIT_NUM):
-            for k in range(REPEAT):
-                execs_slot_avg[i]  += execs_slot_list[k][i]
-            execs_slot_avg[i] /= REPEAT
-            execs_slot_avg[i] = math.ceil(execs_slot_avg[i])
-        # 开始绘图  
-        x = [ i*fuzzer1_execs_unit for i in range(SPLIT_NUM) ]
-        y = execs_slot_avg
-        # 绘制图形
-        plt.plot(x, y, linestyle='-', label=FUZZER) 
-        # 添加图例
-        plt.legend()
-        # 如果 execs_unit_dict[PROGRAM][FUZZER] < fuzzer1_execs_unit，那么在相应处绘制 x 表示在那个地方中止
-        if execs_unit_dict[PROGRAM][FUZZER] < fuzzer1_execs_unit:
-            final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME)
-            k = math.ceil(final_execs / fuzzer1_execs_unit)
-            assert(k <= TOTAL_TIME)
-            plt.text(k*fuzzer1_execs_unit, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
-    # 添加标题和标签 
-    # 注意：edges 最好使用 min 作为横轴单位！！！
-    plt.title(PROGRAM + ' edge-execs graph')
-    plt.xlabel('# execs')
-    plt.ylabel('# edges')
-    # 保存图形为文件: 每个 PROGRAM 画一张图
-    plt.savefig('edge_execs_' + PROGRAM + SPECIFIC_SUFFIX_1 + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
-    print("finish drawing edge_execs_" + PROGRAM + SPECIFIC_SUFFIX_1 + ".svg")
-    sys.stdout.flush()
-    plt.close()  # 关闭图形
-
-    # NOTE: 绘制 FUZZERS2 的 edge_time图
-    plt.figure()  # 创建一个新的图形
-    for FUZZER in FUZZERS_2:
-        # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数组，随后求平均
-        count = 0
-        time_slot_list = [[] for _ in range(REPEAT)]
-        for result in results:
-            fuzz_result = result.get()
-            if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
-                continue
-            time_slot_list[count] = fuzz_result[4]
-            count += 1
-        assert(count == REPEAT)
-        # 求平均，向上取整
-        time_slot_avg  = [0] * SPLIT_NUM
-        for i in range(SPLIT_NUM):
-            for k in range(REPEAT):
-                time_slot_avg[i]  += time_slot_list[k][i]
-            time_slot_avg[i] /= REPEAT
-            time_slot_avg[i] = math.ceil(time_slot_avg[i])
-        # 开始绘图  
-        x = [ (i/60) for i in range(SPLIT_NUM) ]
-        y = time_slot_avg
-        # 绘制图形
-        plt.plot(x, y, linestyle='-', label=FUZZER) 
-        # 添加图例
-        plt.legend()
-    # 添加标题和标签 
-    # 注意：edges 最好使用 min 作为横轴单位！！！
-    plt.title(PROGRAM + ' edge-time graph')
-    plt.xlabel('time(h)')
-    plt.ylabel('# edges')
-    # 保存图形为文件: 每个 PROGRAM 画一张图
-    plt.savefig('edge_time_' + PROGRAM + SPECIFIC_SUFFIX_2 + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
-    print("finish drawing edge_time_" + PROGRAM + SPECIFIC_SUFFIX_2 + ".svg")
-    sys.stdout.flush()
-    plt.close()  # 关闭图形
-
-    # NOTE: 绘制 FUZZERS2 的 edge_execs图
-    plt.figure()  # 创建一个新的图形
-    for FUZZER in FUZZERS_2:
-        # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数组，随后求平均
-        count = 0
-        execs_slot_list  = [[] for _ in range(REPEAT)]
-        for result in results:
-            fuzz_result = result.get()
-            if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
-                continue
-            execs_slot_list[count] = fuzz_result[6]
-            count += 1
-        assert(count == REPEAT)
-        # 求平均，向上取整
-        execs_slot_avg  = [0] * SPLIT_NUM
-        for i in range(SPLIT_NUM):
-            for k in range(REPEAT):
-                execs_slot_avg[i]  += execs_slot_list[k][i]
-            execs_slot_avg[i] /= REPEAT
-            execs_slot_avg[i] = math.ceil(execs_slot_avg[i])
-        # 开始绘图  
-        x = [ i*fuzzer2_execs_unit for i in range(SPLIT_NUM) ]
-        y = execs_slot_avg
-        # 绘制图形
-        plt.plot(x, y, linestyle='-', label=FUZZER) 
-        # 添加图例
-        plt.legend()
-        # 如果 execs_unit_dict[PROGRAM][FUZZER] < fuzzer2_execs_unit，那么在相应处绘制 x 表示在那个地方中止
-        if execs_unit_dict[PROGRAM][FUZZER] < fuzzer2_execs_unit:
-            final_execs = execs_unit_dict[PROGRAM][FUZZER] * (TOTAL_TIME)
-            k = math.ceil(final_execs / fuzzer2_execs_unit)
-            assert(k <= TOTAL_TIME)
-            plt.text(k*fuzzer2_execs_unit, execs_slot_avg[k], 'X', fontsize=12, ha='center', va='center')
-    # 添加标题和标签 
-    # 注意：edges 最好使用 min 作为横轴单位！！！
-    plt.title(PROGRAM + ' edge-execs graph')
-    plt.xlabel('# execs')
-    plt.ylabel('# edges')
-    # 保存图形为文件: 每个 PROGRAM 画一张图
-    plt.savefig('edge_execs_' + PROGRAM + SPECIFIC_SUFFIX_2 + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
-    print("finish drawing edge_execs_" + PROGRAM + SPECIFIC_SUFFIX_2 + ".svg")
-    sys.stdout.flush()
-    plt.close()  # 关闭图形
-
-############################################### 5. 结束   ##################################################
-# 获取当前时间并以自定义格式显示
-current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-print("curtime:" + str(current_time) + " seems everything finish")
-sys.stdout.flush()
-
-pool.close()
-pool.join()
 exit(0)
+
+# ############################################### 3. 统计各程序 max_execs   ##################################################
+# # 这一部分的目的，是为了确认各个 PROGRAM 的执行次数横轴图的最大执行次数
+# # 因为不同 FUZZERS 执行速率不一样，所以哪怕运行相同的时间，最后产生的最大执行次数可能差很多
+# # 我这里是取执行速率最慢的 FUZZERS 的最大执行次数，作为绘图的最大执行次数
+
+# # 这个字典的 key 是 PROGRAM, value 是该 PROGRAM 在所有 FUZZERS 中最小的 max_execs
+# max_execs_dict = {}
+
+# # 统计每个 PROGRAM 在所有 FUZZERS 中最小的 max_execs，存放于 max_execs_dict 中
+# for PROGRAM in PROGRAMS:
+#     # 找到当前 PROGRAM 在所有 FUZZERS 中最小的 max_execs
+#     max_execs = float('inf')
+#     for FUZZER in FUZZERS:
+#         # 在 results 列表中找到 当前 PROGRAM-FUZZER 的所有数据，存放于 dfs 列表中
+#         dfs = []
+#         for result in results:
+#             fuzz_result = result.get()
+#             if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
+#                 continue
+#             dfs.append(fuzz_result[4])
+#         # 收集完后，一共能收集到 REPEAT 个 df
+#         assert(len(dfs) == REPEAT)
+#         # 在 dfs 列表中找到最小的 max_execs
+#         for df in dfs:
+#             if df["total_execs"].max() < max_execs:
+#                 max_execs = df["total_execs"].max() 
+#     # 把这个 PROGRAM 在所有实验中的最小的 max_execs 存放于 max_execs_dict 字典中
+#     max_execs_dict[PROGRAM] = max_execs
+
+# ############################################### 4. 定义绘图函数   ##################################################
+# # name: 决定 y轴 和图的名字
+# # colname: df中和 y轴 相应那一列的列名
+# # accumulate: 这一列是否属于 “积累” 属性？ (crash, seed 属于积累属性, Throughput 不属于)
+# # 或者说，种子数量、crash数量、bug 数量这些是可以积累的，但是 “速度” 是不可以积累的
+# # 路程是可以积累的，速度是不能积累的。学习的知识是可以积累的，学习的速度是不能积累的
+# # 这就是 “积累” 属性
+# def draw_time(name: str, colname: str, accumulate: bool):
+#     # 每一个 PROGRAM 绘制一张图 (FUZZERS 是这张图上的 legend)
+#     for PROGRAM in PROGRAMS:
+
+#         plt.figure()  # 创建一个新的图形
+
+#         for FUZZER in FUZZERS:
+#             # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，储存在 dfs 列表中
+#             dfs = []
+#             for result in results:
+#                 fuzz_result = result.get()
+#                 if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
+#                     continue
+#                 dfs.append(fuzz_result[4])
+#             # 验证 REPEAT 是否和 dfs 收集到的数量一致
+#             assert(len(dfs) == REPEAT)
+#             # 每个 df 都是一个 PROGRAM-FUZZER-TIME 的 edges，可以绘制成一条线
+#             # 我们要对这些 df 的值取平均
+#             # slot_list 就是用来存放绘图数据数组的列表
+#             slot_list = []
+#             for df in dfs:
+#                 # 用来绘图的数据数组
+#                 slot = [0] * SPLIT_NUM
+#                 # 因为是 draw_time 先给 df 按照时间排序排序
+#                 df = df.sort_values("# relative_time")
+#                 # 遍历排序后的数据
+#                 for _, row in df.iterrows():
+#                     # 取得这一行的时间(单位：秒)
+#                     time_s = int(row["# relative_time"])
+#                     # 把时间转为分钟，随后放入 slot 中相应的位置
+#                     k = math.ceil(time_s / 60)
+#                     # 部分实验可能会运行超过规定的时间，我们把超过规定时间的数据忽略掉
+#                     if k < SPLIT_NUM:
+#                         slot[k] = int(row[colname])
+#                 # 因为我们计算 k 是向上取整，所以元素0必须为0
+#                 assert(slot[0] == 0)
+#                 # 如果这个属性是 “积累属性”，那么就需要填补 slot 中为 0 的部分
+#                 if accumulate:
+#                     for i in range(SPLIT_NUM):
+#                         if i > 0 and slot[i] == 0:
+#                             slot[i] = slot[i-1]
+#                 slot_list.append(slot)
+#             # 验证，slot_list 的长度必须等于 REPEAT
+#             assert(len(slot_list) == REPEAT)
+#             # 求平均，向上取整 (向上取整的原因：如果 REPEAT=5，有一个实验找到了1个 bug，
+#             # 剩下4个都没找到，我们希望最后平均出来的 bug 是1而不是0)
+#             slot_avg = [0] * SPLIT_NUM
+#             for i in range(SPLIT_NUM):
+#                 for k in range(REPEAT):
+#                     slot_avg[i] += slot_list[k][i]
+#                 slot_avg[i] /= REPEAT
+#                 slot_avg[i] = math.ceil(slot_avg[i])
+
+#             # 有了 slot_avg 就能绘图了
+#             # 开始绘图
+#             # x 轴以小时(h) 为单位，我们的 slot_avg 每一个下标都是分钟 min，所以这里要除以 60
+#             x = [ (i/60) for i in range(SPLIT_NUM) ]
+#             y = slot_avg
+#             # 绘制图形
+#             plt.plot(x, y, linestyle='-', label=FUZZER) 
+#             # 添加图例
+#             plt.legend()
+
+#         # 这个 PROPGRAM 绘制完毕后，要命名
+#         # 设置标题
+#         plt.title(PROGRAM + " " + name + '-time graph')
+#         # 设置 x 轴
+#         plt.xlabel('time(h)')
+#         # 设置 y 轴
+#         plt.ylabel('# ' + name)
+#         # 设置文件名和文件类型 (png, svg, pdf ....)
+#         plt.savefig(name + '_time_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg') 
+#         # 打印日志标识成功绘制这个图片
+#         print("finish drawing " + name + "_time_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
+#         sys.stdout.flush()
+#         # 关闭图形，节约内存
+#         plt.close()  
+
+#     # 打印日志：成功绘制完某一类型的图片
+#     print("============================= finish drawing " + name + "_time graph part =============================")
+#     sys.stdout.flush()
+
+# # name: 决定 y轴 和图的名字
+# # colname: df中和 y轴 相应那一列的列名
+# # accumulate: 这一列是否属于 “积累” 属性？ (crash, seed 属于积累属性, Throughput 不属于)
+# # 或者说，种子数量、crash数量、bug 数量这些是可以积累的，但是 “速度” 是不可以积累的
+# # 路程是可以积累的，速度是不能积累的。学习的知识是可以积累的，学习的速度是不能积累的
+# # 这就是 “积累” 属性
+# def draw_execs(name: str, colname: str, accumulate: bool):
+#     # 每一个 PROGRAM 绘制一张图 (FUZZERS 是这张图上的 legend)
+#     for PROGRAM in PROGRAMS:
+
+#         plt.figure()  # 创建一个新的图形
+#         # 获取这个程序的 max_execs，并计算 execs_unit
+#         # 后续每一下标表示 “经历了一个 execs_unit” 这么多的执行次数
+#         max_execs = max_execs_dict[PROGRAM]
+#         execs_unit = (max_execs / int(TOTAL_TIME / SPLIT_UNIT))
+
+#         for FUZZER in FUZZERS:
+#             # 首先，收集结果列表中，符合 PROGRAM-FUZZER 的所有数据，储存在 dfs 列表中
+#             dfs = []
+#             for result in results:
+#                 fuzz_result = result.get()
+#                 if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
+#                     continue
+#                 dfs.append(fuzz_result[4])
+#             # 验证 REPEAT 是否和 dfs 收集到的数量一致
+#             assert(len(dfs) == REPEAT)
+#             # 每个 df 都是一个 PROGRAM-FUZZER-TIME 的 edges，可以绘制成一条线
+#             # 我们要对这些 df 的值取平均
+#             # slot_list 就是用来存放绘图数据数组的列表
+#             slot_list = []
+#             for df in dfs:
+#                 # 用来绘图的数据数组
+#                 slot = [0] * SPLIT_NUM
+#                 # 因为是 draw_execs 先给 df 按照执行次数排序
+#                 df = df.sort_values("total_execs")
+#                 # 遍历排序后的数据
+#                 for _, row in df.iterrows():
+#                     # 取得这一行的执行次数
+#                     execs = int(row["total_execs"])
+#                     # 根据 execs_unit 计算下标，向上取整
+#                     k = math.ceil(execs / execs_unit)
+#                     # 部分 edges 可能含有远超于 SPLIT_NUM 的数据，它们不会被
+#                     # 绘制进图片了，抛弃掉
+#                     if k < SPLIT_NUM:
+#                         slot[k] = int(row[colname])
+#                 # 因为我们计算 k 是向上取整，所以元素0必须为0
+#                 assert(slot[0] == 0)
+#                 # 如果这个属性是 “积累属性”，那么就需要填补 slot 中为 0 的部分
+#                 if accumulate:
+#                     for i in range(SPLIT_NUM):
+#                         if i > 0 and slot[i] == 0:
+#                             slot[i] = slot[i-1]
+#                 slot_list.append(slot)
+#             # 验证，slot_list 的长度必须等于 REPEAT
+#             assert(len(slot_list) == REPEAT)
+#             # 求平均，向上取整 (向上取整的原因：如果 REPEAT=5，有一个实验找到了1个 bug，
+#             # 剩下4个都没找到，我们希望最后平均出来的 bug 是1而不是0)
+#             slot_avg = [0] * SPLIT_NUM
+#             for i in range(SPLIT_NUM):
+#                 for k in range(REPEAT):
+#                     slot_avg[i] += slot_list[k][i]
+#                 slot_avg[i] /= REPEAT
+#                 slot_avg[i] = math.ceil(slot_avg[i])
+
+#             # 有了 slot_avg 就能绘图了
+#             # 开始绘图
+#             # x 轴表示执行次数
+#             x = [ i*execs_unit for i in range(SPLIT_NUM) ]
+#             y = slot_avg
+#             # 绘制图形
+#             plt.plot(x, y, linestyle='-', label=FUZZER) 
+#             # 添加图例
+#             plt.legend()
+
+#         # 这个 PROPGRAM 绘制完毕后，要命名
+#         # 设置标题
+#         plt.title(PROGRAM + " " + name + '-execs graph')
+#         # 设置 x 轴
+#         plt.xlabel('# execs')
+#         # 设置 y 轴
+#         plt.ylabel('# ' + name)
+#         # 设置文件名和文件类型 (png, svg, pdf ....)
+#         plt.savefig(name + '_execs_' + PROGRAM + SPECIFIC_SUFFIX + '.svg', format='svg')  # 你可以指定文件格式，例如 'png', 'jpg', 'pdf', 'svg'
+#         # 打印日志标识成功绘制这个图片
+#         print("finish drawing " + name + "_execs_" + PROGRAM + SPECIFIC_SUFFIX + ".svg")
+#         sys.stdout.flush()
+#         # 关闭图形，节约内存
+#         plt.close() 
+
+#     # 打印日志：成功绘制完某一类型的图片
+#     print("============================= finish drawing " + name + "_execs graph part =============================")
+#     sys.stdout.flush()
+
+# ############################################### 5. 绘制 crash_time   ##################################################
+# if draw_configure["crash_time"]:
+#     draw_time("crash", "saved_crashes", True)
+
+# ############################################### 6. 绘制 crash_execs  ##################################################
+# if draw_configure["crash_execs"]:
+#     draw_execs("crash", "saved_crashes", True)
+
+# ############################################### 7. 绘制 seed_time    ##################################################
+# if draw_configure["seed_time"]:
+#     draw_time("seed", "corpus_count", True)
+
+# ############################################### 8. 绘制 seed_execs   ##################################################
+# if draw_configure["seed_execs"]:
+#     draw_execs("seed", "corpus_count", True)
+
+# ############################################### 9. 绘制 Throughput  ##################################################
+# if draw_configure["throughput_time"]:
+#     draw_time("execs_per_sec", "execs_per_sec", False)
+
+# ############################################### 10. 要结束了             ##################################################
+# # 关闭并行任务池子、退出
+# pool.close()
+# pool.join()
+# exit(0)  
+
+
