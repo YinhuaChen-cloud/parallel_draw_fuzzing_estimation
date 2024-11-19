@@ -212,6 +212,7 @@ class InputFile:
 
 # 被并行执行的函数 --------------------------------------------------------------- start
 def edge_data_collector(FUZZER, TARGET, PROGRAM, TIME, task_count):
+    df = None
     try:
         # 第一步：把 crash 和 queue 下所有文件读取出来，去掉包含 "+pat" 的文件，随后按照 "time" 排序
         # 加个 assert()，表示一个列表里绝对没有两个文件的 time 是相等的
@@ -294,6 +295,8 @@ def edge_data_collector(FUZZER, TARGET, PROGRAM, TIME, task_count):
             "edges_found"     : edges_list,
         }
         df = pd.DataFrame(data)
+        # relative_time 这一列是 ms 为单位，把它转为 s 为单位
+        df['# relative_time'] = int(df['# relative_time'] / 1000)
 
         print(df)
         sys.stdout.flush()
@@ -304,6 +307,7 @@ def edge_data_collector(FUZZER, TARGET, PROGRAM, TIME, task_count):
             sys.stdout.flush()
     except Exception as e:
         print(f"Exception caught in main process: {e}")
+    assert(df is not None)
     return (FUZZER, TARGET, PROGRAM, TIME, df)
 # 被并行执行的函数 --------------------------------------------------------------- end
 
@@ -427,8 +431,8 @@ def draw_time(name: str, colname: str, accumulate: bool):
                     # 部分实验可能会运行超过规定的时间，我们把超过规定时间的数据忽略掉
                     if k < SPLIT_NUM:
                         slot[k] = int(row[colname])
-                # 因为我们计算 k 是向上取整，所以元素0必须为0
-                assert(slot[0] == 0)
+                # edge 的话，corpus 中的种子也被算入了，corpus 的种子 time_s = 0，所以 slot[0] != 0
+                # assert(slot[0] == 0)
                 # 如果这个属性是 “积累属性”，那么就需要填补 slot 中为 0 的部分
                 if accumulate:
                     for i in range(SPLIT_NUM):
@@ -520,8 +524,8 @@ def draw_execs(name: str, colname: str, accumulate: bool):
                     # 绘制进图片了，抛弃掉
                     if k < SPLIT_NUM:
                         slot[k] = int(row[colname])
-                # 因为我们计算 k 是向上取整，所以元素0必须为0
-                assert(slot[0] == 0)
+                # edge 的话，corpus 中的种子也被算入了，corpus 的种子 execs = 0，所以 slot[0] != 0
+                # assert(slot[0] == 0)
                 # 如果这个属性是 “积累属性”，那么就需要填补 slot 中为 0 的部分
                 if accumulate:
                     for i in range(SPLIT_NUM):
