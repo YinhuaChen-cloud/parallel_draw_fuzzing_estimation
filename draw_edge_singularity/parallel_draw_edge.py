@@ -16,7 +16,7 @@ import numpy as np
 ############################################### 0. 配置部分         ##################################################
 TOTAL_TIME = 12 * 60 # 单位分钟
 FUZZERS = ["aflplusplus", "nopathreduction"]
-TARGETS = ["base64", "md5sum", "uniq", "who", "libpng", "libsndfile", "php", "sqlite3", "lua", "libxml2", "libtiff", "openssl"]
+TARGETS = ["base64", "md5sum", "uniq", "who", "libpng", "libsndfile", "php", "sqlite3", "lua", "libxml2", "libtiff"]
 # 表明这个脚本所运行的文件夹
 WORKDIR = "cache"
 # 重复次数
