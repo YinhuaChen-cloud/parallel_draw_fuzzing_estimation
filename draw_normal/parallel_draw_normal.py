@@ -10,9 +10,9 @@ import pandas as pd
 import math
 
 ############################################### 0. 配置部分         ##################################################
-TOTAL_TIME = 12 * 60 # 单位分钟
-FUZZERS = ["aflplusplus", "nopathreduction"]
-TARGETS = ["base64", "md5sum", "uniq", "who", "libpng", "libsndfile", "php", "sqlite3", "lua", "libxml2", "libtiff", "openssl"]
+TOTAL_TIME = 30 # 单位分钟
+FUZZERS = ["aflplusplus", "onlyinstrument", "writetoshm", "pathfuzzerfullpath", "pathfuzzerreduction", "fixversion", "fxnotailopt"]
+TARGETS = ["libpng", "libsndfile", "libtiff"]
 # 表明这个脚本所运行的文件夹
 WORKDIR = "cache"
 # 重复次数
@@ -21,8 +21,6 @@ REPEAT=1
 SPECIFIC_SUFFIX = "_all"
 # 决定绘制哪些图，不绘制哪些图
 draw_configure = {
-    "crash_time"     : True,
-    "crash_execs"    : True,
     "seed_time"      : True,
     "seed_execs"     : True,
     "throughput_time": True,
@@ -82,7 +80,7 @@ finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
 # 被并行执行的函数 --------------------------------------------------------------- start
 def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME, task_count):
     # 当前这个 PROGRAM-FUZZER-TIME 所对应的 plot_data 文件路径
-    plot_data_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/default/plot_data"
+    plot_data_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/Master/plot_data"
     # plot_data 是 csv 格式的，所以我们可以使用 pandas.DataFrame 的 csv API 读取它
     df = pd.read_csv(plot_data_path)
     # 把所有列表的首尾空白字符去掉
@@ -356,27 +354,19 @@ def draw_execs(name: str, colname: str, accumulate: bool):
     print("============================= finish drawing " + name + "_execs graph part =============================")
     sys.stdout.flush()
 
-############################################### 5. 绘制 crash_time   ##################################################
-if draw_configure["crash_time"]:
-    draw_time("crash", "saved_crashes", True)
-
-############################################### 6. 绘制 crash_execs  ##################################################
-if draw_configure["crash_execs"]:
-    draw_execs("crash", "saved_crashes", True)
-
-############################################### 7. 绘制 seed_time    ##################################################
+############################################### 5. 绘制 seed_time    ##################################################
 if draw_configure["seed_time"]:
     draw_time("seed", "corpus_count", True)
 
-############################################### 8. 绘制 seed_execs   ##################################################
+############################################### 6. 绘制 seed_execs   ##################################################
 if draw_configure["seed_execs"]:
     draw_execs("seed", "corpus_count", True)
 
-############################################### 9. 绘制 Throughput  ##################################################
+############################################### 7. 绘制 Throughput  ##################################################
 if draw_configure["throughput_time"]:
     draw_time("execs_per_sec", "execs_per_sec", False)
 
-############################################### 10. 要结束了             ##################################################
+############################################### 8. 要结束了             ##################################################
 # 关闭并行任务池子、退出
 pool.close()
 pool.join()
