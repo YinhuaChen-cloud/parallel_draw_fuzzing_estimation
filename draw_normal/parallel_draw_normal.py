@@ -21,10 +21,15 @@ REPEAT=1
 SPECIFIC_SUFFIX = "_all"
 # 决定绘制哪些图，不绘制哪些图
 draw_configure = {
+    "crash_time"     : True,
+    "crash_execs"    : True,
     "seed_time"      : True,
     "seed_execs"     : True,
     "throughput_time": True,
 }
+
+# 如果开启了并行 fuzz，那么 Master-Slave 机制下的 IDs 列表
+PARALLEL_IDS = ["Master", "Slave1", "Slave2"]
 
 ############################################### 一些常用常数、函数的定义(尽量别修改) ##############################
 SPLIT_UNIT = 1
@@ -78,9 +83,9 @@ PROGRAMS = PROGRAMS_list[0]
 finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
 
 # 被并行执行的函数 --------------------------------------------------------------- start
-def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME, task_count):
+def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME, parallel_id):
     # 当前这个 PROGRAM-FUZZER-TIME 所对应的 plot_data 文件路径
-    plot_data_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/Master/plot_data"
+    plot_data_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/" + parallel_id + "/plot_data"
     # plot_data 是 csv 格式的，所以我们可以使用 pandas.DataFrame 的 csv API 读取它
     df = pd.read_csv(plot_data_path)
     # 把所有列表的首尾空白字符去掉
@@ -89,10 +94,10 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME, task_count):
     # 打印信息，表示这个数据收集任务已完成
     with finished_tasks.get_lock():
         finished_tasks.value += 1
-        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME} data collect")
+        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME}-{parallel_id} data collect")
         sys.stdout.flush()
     # 返回存储数据的 DataFrame，也就是 df，前面的几个元素是为了标识这个 df 属于哪个 PROGRAM-FUZZER-TIME
-    return (FUZZER, TARGET, PROGRAM, TIME, df)
+    return (FUZZER, TARGET, PROGRAM, TIME, parallel_id, df)
 # 被并行执行的函数 --------------------------------------------------------------- end
 
 # 获取当前机器上的 CPU cores 总数，方便后续并行操作
@@ -131,9 +136,10 @@ for PROGRAM in PROGRAMS:
 
                 # 分配一个 CPU cores，让它收集当前 PROGRAM-FUZZER-TIME 的 plot_data 信息，结果存放于 results 列表
                 for TIME in TIMES:
-                    result = pool.apply_async(collect_data_worker, (FUZZER, TARGET, PROGRAM, TIME, task_count))
-                    task_count += 1
-                    results.append(result)
+                    for parallel_id in PARALLEL_IDS:
+                        result = pool.apply_async(collect_data_worker, (FUZZER, TARGET, PROGRAM, TIME, parallel_id))
+                        task_count += 1
+                        results.append(result)
 
 # 打印看看一共有多少个并行任务在运行
 print(f"================== There are {len(results)} data collect tasks in total ==================")
@@ -162,9 +168,9 @@ for PROGRAM in PROGRAMS:
             fuzz_result = result.get()
             if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
                 continue
-            dfs.append(fuzz_result[4])
-        # 收集完后，一共能收集到 REPEAT 个 df
-        assert(len(dfs) == REPEAT)
+            dfs.append(fuzz_result[5])
+        # 收集完后，一共能收集到 REPEAT x len(PARALLEL_IDS) 个 df
+        assert(len(dfs) == (REPEAT * len(PARALLEL_IDS)))
         # 在 dfs 列表中找到最小的 max_execs
         for df in dfs:
             if df["total_execs"].max() < max_execs:
@@ -174,7 +180,7 @@ for PROGRAM in PROGRAMS:
 
 ############################################### 4. 定义绘图函数   ##################################################
 # name: 决定 y轴 和图的名字
-# colname: df中和 y轴 相应那一列的列名
+# colname: plot_data 中和 y轴 相应那一列的列名
 # accumulate: 这一列是否属于 “积累” 属性？ (crash, seed 属于积累属性, Throughput 不属于)
 # 或者说，种子数量、crash数量、bug 数量这些是可以积累的，但是 “速度” 是不可以积累的
 # 路程是可以积累的，速度是不能积累的。学习的知识是可以积累的，学习的速度是不能积累的
@@ -192,10 +198,10 @@ def draw_time(name: str, colname: str, accumulate: bool):
                 fuzz_result = result.get()
                 if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
                     continue
-                dfs.append(fuzz_result[4])
+                dfs.append(fuzz_result[5])
             # 验证 REPEAT 是否和 dfs 收集到的数量一致
-            assert(len(dfs) == REPEAT)
-            # 每个 df 都是一个 PROGRAM-FUZZER-TIME 的 plot_data，可以绘制成一条线
+            assert(len(dfs) == (REPEAT * len(PARALLEL_IDS)))
+            # 每个 df 都是一个 PROGRAM-FUZZER-TIME-parallel_id 的 plot_data，可以绘制成一条线
             # 我们要对这些 df 的值取平均
             # slot_list 就是用来存放绘图数据数组的列表
             slot_list = []
@@ -221,15 +227,15 @@ def draw_time(name: str, colname: str, accumulate: bool):
                         if i > 0 and slot[i] == 0:
                             slot[i] = slot[i-1]
                 slot_list.append(slot)
-            # 验证，slot_list 的长度必须等于 REPEAT
-            assert(len(slot_list) == REPEAT)
+            # 验证，slot_list 的长度必须等于 REPEAT x len(PARALLEL_IDS)
+            assert(len(slot_list) == (REPEAT * len(PARALLEL_IDS)))
             # 求平均，向上取整 (向上取整的原因：如果 REPEAT=5，有一个实验找到了1个 bug，
             # 剩下4个都没找到，我们希望最后平均出来的 bug 是1而不是0)
             slot_avg = [0] * SPLIT_NUM
             for i in range(SPLIT_NUM):
-                for k in range(REPEAT):
+                for k in range(REPEAT * len(PARALLEL_IDS)):
                     slot_avg[i] += slot_list[k][i]
-                slot_avg[i] /= REPEAT
+                slot_avg[i] /= (REPEAT * len(PARALLEL_IDS))
                 slot_avg[i] = math.ceil(slot_avg[i])
 
             # 有了 slot_avg 就能绘图了
@@ -262,7 +268,7 @@ def draw_time(name: str, colname: str, accumulate: bool):
     sys.stdout.flush()
 
 # name: 决定 y轴 和图的名字
-# colname: df中和 y轴 相应那一列的列名
+# colname: plot_data 中和 y轴 相应那一列的列名
 # accumulate: 这一列是否属于 “积累” 属性？ (crash, seed 属于积累属性, Throughput 不属于)
 # 或者说，种子数量、crash数量、bug 数量这些是可以积累的，但是 “速度” 是不可以积累的
 # 路程是可以积累的，速度是不能积累的。学习的知识是可以积累的，学习的速度是不能积累的
@@ -284,10 +290,10 @@ def draw_execs(name: str, colname: str, accumulate: bool):
                 fuzz_result = result.get()
                 if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
                     continue
-                dfs.append(fuzz_result[4])
+                dfs.append(fuzz_result[5])
             # 验证 REPEAT 是否和 dfs 收集到的数量一致
-            assert(len(dfs) == REPEAT)
-            # 每个 df 都是一个 PROGRAM-FUZZER-TIME 的 plot_data，可以绘制成一条线
+            assert(len(dfs) == (REPEAT * len(PARALLEL_IDS)))
+            # 每个 df 都是一个 PROGRAM-FUZZER-TIME-parallel_id 的 plot_data，可以绘制成一条线
             # 我们要对这些 df 的值取平均
             # slot_list 就是用来存放绘图数据数组的列表
             slot_list = []
@@ -314,16 +320,18 @@ def draw_execs(name: str, colname: str, accumulate: bool):
                         if i > 0 and slot[i] == 0:
                             slot[i] = slot[i-1]
                 slot_list.append(slot)
-            # 验证，slot_list 的长度必须等于 REPEAT
-            assert(len(slot_list) == REPEAT)
+            # 验证，slot_list 的长度必须等于 REPEAT x len(PARALLEL_IDS)
+            assert(len(slot_list) == (REPEAT * len(PARALLEL_IDS)))
             # 求平均，向上取整 (向上取整的原因：如果 REPEAT=5，有一个实验找到了1个 bug，
             # 剩下4个都没找到，我们希望最后平均出来的 bug 是1而不是0)
             slot_avg = [0] * SPLIT_NUM
             for i in range(SPLIT_NUM):
-                for k in range(REPEAT):
+                for k in range(REPEAT * len(PARALLEL_IDS)):
                     slot_avg[i] += slot_list[k][i]
-                slot_avg[i] /= REPEAT
+                slot_avg[i] /= (REPEAT * len(PARALLEL_IDS))
                 slot_avg[i] = math.ceil(slot_avg[i])
+            # 求平均，向上取整 (向上取整的原因：如果 REPEAT=5，有一个实验找到了1个 bug，
+            # 剩下4个都没找到，我们希望最后平均出来的 bug 是1而不是0)
 
             # 有了 slot_avg 就能绘图了
             # 开始绘图
@@ -354,19 +362,23 @@ def draw_execs(name: str, colname: str, accumulate: bool):
     print("============================= finish drawing " + name + "_execs graph part =============================")
     sys.stdout.flush()
 
-############################################### 5. 绘制 seed_time    ##################################################
+############################################### 5. 绘制各种图    ##################################################
+if draw_configure["crash_time"]:
+    draw_time("crash", "saved_crashes", True)
+
+if draw_configure["crash_execs"]:
+    draw_execs("crash", "saved_crashes", True)
+
 if draw_configure["seed_time"]:
     draw_time("seed", "corpus_count", True)
 
-############################################### 6. 绘制 seed_execs   ##################################################
 if draw_configure["seed_execs"]:
     draw_execs("seed", "corpus_count", True)
 
-############################################### 7. 绘制 Throughput  ##################################################
 if draw_configure["throughput_time"]:
     draw_time("execs_per_sec", "execs_per_sec", False)
 
-############################################### 8. 要结束了             ##################################################
+############################################### 6. 要结束了             ##################################################
 # 关闭并行任务池子、退出
 pool.close()
 pool.join()
