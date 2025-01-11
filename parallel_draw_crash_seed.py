@@ -22,7 +22,9 @@ SPECIFIC_SUFFIX = "_all"
 # 决定绘制哪些图，不绘制哪些图
 draw_configure = {
     "crash_time": True,
+    "crash_execs": True,
     "seed_time": True,
+    "seed_execs": True,
 }
 
 # 如果开启了并行 fuzz，那么 Master-Slave 机制下的 IDs 列表
@@ -74,19 +76,21 @@ for i in range(len(PROGRAMS_list)):
 
 PROGRAMS = PROGRAMS_list[0]
 
-############################################### 2. 并行读取绘图所需数据 (plot_data) ############################### 完成
+############################################### 2. 并行读取绘图所需数据 (plot_data) ############################### 
 
 # 一个全局变量，被所有并行任务共享，标识已经完成的任务数量
 finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
 
-# 被并行执行的函数 --------------------------------------------------------------- start 
+# 被并行执行的函数 (收集 queue， crash 的数据，包括 time/execs 维度) --------------------------------------------------------------- start 
 def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME, parallel_id):
-    # 当前这个 PROGRAM-FUZZER-TIME 所对应的 plot_data 文件路径
-    plot_data_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/" + parallel_id + "/plot_data"
-    # plot_data 是 csv 格式的，所以我们可以使用 pandas.DataFrame 的 csv API 读取它
-    df = pd.read_csv(plot_data_path)
-    # 把所有列表的首尾空白字符去掉
-    df.columns = df.columns.str.strip()
+    # 当前这个 PROGRAM-FUZZER-TIME 所对应的 queue 文件夹路径
+    queue_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/" + parallel_id + "/queue"
+    # 当前这个 PROGRAM-FUZZER-TIME 所对应的 crash 文件夹路径
+    crash_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/" + parallel_id + "/crash"
+
+
+
+
 
     # 打印信息，表示这个数据收集任务已完成
     with finished_tasks.get_lock():
@@ -95,7 +99,7 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME, parallel_id):
         sys.stdout.flush()
     # 返回存储数据的 DataFrame，也就是 df，前面的几个元素是为了标识这个 df 属于哪个 PROGRAM-FUZZER-TIME
     return (FUZZER, TARGET, PROGRAM, TIME, parallel_id, df)
-# 被并行执行的函数 --------------------------------------------------------------- end
+# 被并行执行的函数 (收集 queue， crash 的数据，包括 time/execs 维度) --------------------------------------------------------------- end
 
 # 获取当前机器上的 CPU cores 总数，方便后续并行操作
 num_cores = multiprocessing.cpu_count()
@@ -146,7 +150,9 @@ sys.stdout.flush()
 for result in results:
     result.wait()
 
-############################################### 3. 定义绘图函数   ################################################## 完成
+sys.exit(0)
+
+############################################### 3. 定义绘图函数   ################################################## 
 # name: 决定 y轴 和图的名字
 # colname: plot_data 中和 y轴 相应那一列的列名
 # accumulate: 这一列是否属于 “积累” 属性？ (crash, seed 属于积累属性, Throughput 不属于)
@@ -235,12 +241,21 @@ def draw_time(name: str, colname: str, accumulate: bool):
     print("============================= finish drawing " + name + "_time graph part =============================")
     sys.stdout.flush()
 
-############################################### 4. 绘制 throughput_time 图    ################################################## 完成
+############################################### 4. 绘制 相关 图    ################################################## 完成
 
-if draw_configure["throughput_time"]:
-    draw_time("execs_per_sec", "execs_per_sec", False)
+if draw_configure["crash_time"]:
+    draw_time("crash", "saved_crashes", True)
 
-############################################### 5. 要结束了                   ################################################## 完成
+if draw_configure["crash_execs"]:
+    draw_execs("crash", "saved_crashes", True)
+
+if draw_configure["seed_time"]:
+    draw_time("seed", "corpus_count", True)
+
+if draw_configure["seed_execs"]:
+    draw_execs("seed", "corpus_count", True)
+
+############################################### 5. 要结束了                   ################################################## 完成   
 # 关闭并行任务池子、退出
 pool.close()
 pool.join()
