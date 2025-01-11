@@ -114,7 +114,6 @@ def do_hash(FUZZER, TARGET, PROGRAM, TIME, parallel_id):
     # 提取 time 和 execs，计算 hash，存入哈希池
     hashpool = {}
     for file in matching_files:
-        print(file)
         match = re.search(pattern, file)
         assert(match)
         time_val = int(match.group(1))  # 提取 time
