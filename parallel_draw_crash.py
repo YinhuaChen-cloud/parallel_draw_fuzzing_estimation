@@ -398,11 +398,11 @@ def draw_execs(name: str, colname: str, accumulate: bool):
 
 ############################################### 5. 绘制 throughput_time 图    ################################################## 完成
 
-if draw_configure["seed_time"]:
-    draw_time("seed", "corpus_count", True)
+if draw_configure["crash_time"]:
+    draw_time("crash", "corpus_count", True)
 
-if draw_configure["seed_execs"]:
-    draw_execs("seed", "corpus_count", True)
+if draw_configure["crash_execs"]:
+    draw_execs("crash", "corpus_count", True)
 
 ############################################### 6. 要结束了                   ################################################## 完成
 # 关闭并行任务池子、退出
