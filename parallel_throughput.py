@@ -12,7 +12,7 @@ import math
 ############################################### 0. 配置部分         ################################################## 完成
 TOTAL_TIME = 2160 # 单位分钟
 FUZZERS = ["aflplusplus", "fixversion"]
-TARGETS = ["base64", "libpng", "libsndfile", "libtiff", "libxml2", "lua", "md5sum", "openssl", "php", "sqlite3", "uniq", "who"]
+TARGETS = ["base64", "libpng", "libsndfile", "libtiff", "libxml2", "md5sum", "php", "sqlite3", "uniq", "who"]
 # 表明这个脚本所运行的文件夹
 WORKDIR = "cache"
 # 重复次数
