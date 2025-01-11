@@ -92,11 +92,20 @@ finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
 
 # 被并行执行的函数 --------------------------------------------------------------- start 
 def unique_files(FUZZER, TARGET, PROGRAM, TIME):
-    # 创建一个 unique dir
-    # mkdir -p unique dir
+    # 若 unique dir 已存在，删除，不存在，不报错
     unique_dir_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/queue"
     try:
-        os.makedirs(unique_dir_path, exist_ok=True)
+        if os.path.exists(unique_dir_path):
+            shutil.rmtree(unique_dir_path)
+            print(f"Directory '{path}' removed successfully.")
+        else:
+            pass
+    except Exception as e:
+        print(f"Failed to remove directory: {e}")
+    # 创建一个 unique dir
+    # mkdir unique dir
+    try:
+        os.makedirs(unique_dir_path, exist_ok=False)
     except Exception as e:
         print(f"Failed to create directory '{unique_dir_path}': {e}")
 
