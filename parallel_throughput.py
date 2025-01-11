@@ -12,7 +12,7 @@ import math
 ############################################### 0. 配置部分         ##################################################
 TOTAL_TIME = 2160 # 单位分钟
 FUZZERS = ["aflplusplus", "fixversion"]
-TARGETS = ["libpng", "libsndfile", "libtiff"]
+TARGETS = ["base64", "libpng", "libsndfile", "libtiff", "libxml2", "lua", "md5sum", "openssl", "php", "sqlite3", "uniq", "who"]
 # 表明这个脚本所运行的文件夹
 WORKDIR = "cache"
 # 重复次数
@@ -21,10 +21,6 @@ REPEAT=1
 SPECIFIC_SUFFIX = "_all"
 # 决定绘制哪些图，不绘制哪些图
 draw_configure = {
-    "crash_time"     : True,
-    "crash_execs"    : True,
-    "seed_time"      : True,
-    "seed_execs"     : True,
     "throughput_time": True,
 }
 
@@ -362,23 +358,12 @@ def draw_execs(name: str, colname: str, accumulate: bool):
     print("============================= finish drawing " + name + "_execs graph part =============================")
     sys.stdout.flush()
 
-############################################### 5. 绘制各种图    ##################################################
-if draw_configure["crash_time"]:
-    draw_time("crash", "saved_crashes", True)
-
-if draw_configure["crash_execs"]:
-    draw_execs("crash", "saved_crashes", True)
-
-if draw_configure["seed_time"]:
-    draw_time("seed", "corpus_count", True)
-
-if draw_configure["seed_execs"]:
-    draw_execs("seed", "corpus_count", True)
+############################################### 5. 绘制 throughput_time 图    ##################################################
 
 if draw_configure["throughput_time"]:
     draw_time("execs_per_sec", "execs_per_sec", False)
 
-############################################### 6. 要结束了             ##################################################
+############################################### 6. 要结束了                   ##################################################
 # 关闭并行任务池子、退出
 pool.close()
 pool.join()
