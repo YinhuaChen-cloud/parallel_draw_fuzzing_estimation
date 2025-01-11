@@ -93,7 +93,7 @@ finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
 # 被并行执行的函数 --------------------------------------------------------------- start 
 def unique_files(FUZZER, TARGET, PROGRAM, TIME):
     # 若 unique dir 已存在，删除，不存在，不报错
-    unique_dir_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/queue"
+    unique_dir_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/"
     try:
         if os.path.exists(unique_dir_path):
             shutil.rmtree(unique_dir_path)
