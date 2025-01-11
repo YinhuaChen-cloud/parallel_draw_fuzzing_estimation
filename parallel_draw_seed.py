@@ -98,7 +98,7 @@ for i in range(len(PROGRAMS_list)):
 
 PROGRAMS = PROGRAMS_list[0]
 
-############################################### 2. 对所有 queue 所有文件读取，获取 time，execs，并去重 ############################### --- doing
+########################### 2. 对所有 queue 所有文件读取，获取 time，execs，并去重 ############################### 完成
 
 # 一个全局变量，被所有并行任务共享，标识已经完成的任务数量
 finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
@@ -131,7 +131,6 @@ def do_hash(FUZZER, TARGET, PROGRAM, TIME, parallel_id):
                     hashpool[file_hash]["execs"] = execs_val
         else:
             print(f"Failed to process {file_path}.")
-
 
     # 打印信息，表示这个数据收集任务已完成
     with finished_tasks.get_lock():
@@ -183,8 +182,6 @@ sys.stdout.flush()
 # 等待所有并行任务结束
 for result in results:
     result.wait()
-
-sys.exit(0)
 
 ############################################### 3. 定义绘图函数   ################################################## 
 # name: 决定 y轴 和图的名字
