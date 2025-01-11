@@ -9,7 +9,7 @@ import csv
 import pandas as pd
 import math
 
-############################################### 0. 配置部分         ################################################## --- doing
+############################################### 0. 配置部分         ################################################## 完成
 TOTAL_TIME = 2160 # 单位分钟
 FUZZERS = ["aflplusplus", "fixversion"]
 TARGETS = ["base64", "libpng", "libsndfile", "libtiff", "libxml2", "md5sum", "php", "sqlite3", "uniq", "who"]
@@ -21,7 +21,8 @@ REPEAT=1
 SPECIFIC_SUFFIX = "_all"
 # 决定绘制哪些图，不绘制哪些图
 draw_configure = {
-    "throughput_time": True,
+    "seed_time": True,
+    "seed_execs": True,
 }
 
 ############################################### 一些常用常数、函数的定义(尽量别修改) ############################## 完成
@@ -39,6 +40,11 @@ def getfiles(basedir):
     files = [f for f in os.listdir(basedir) 
         if os.path.isfile(os.path.join(basedir, f)) and not f.startswith('.')]
     return files
+
+class InputFile:
+    def __init__(self, time: int, execs: int, filename: str):
+        self.time = time
+        self.execs = execs
 
 ######################################## 1. 验证 fuzzing result 是否有异常 ###################################### 完成 
 # 首先验证 WORKDIR是否正确
@@ -76,14 +82,15 @@ for i in range(len(PROGRAMS_list)):
 
 PROGRAMS = PROGRAMS_list[0]
 
-############################################### 2. 并行读取绘图所需数据 (plot_data) ############################### --- doing
+############################################### 2. 并行读取绘图所需数据 (queue) ############################### 完成
 
 # 一个全局变量，被所有并行任务共享，标识已经完成的任务数量
 finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
 
 # 被并行执行的函数 --------------------------------------------------------------- start 
 def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
-    # 当前这个 PROGRAM-FUZZER-TIME 所对应的 plot_data 文件路径
+    # 返回一个 DataFrame
+    InputFile_list = []
     queue_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/queue"
     allfiles = getfiles(queue_path)
     pattern = r"time:(\d+),execs:(\d+),"
@@ -93,17 +100,45 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
         assert(match)
         time_val = int(match.group(1))  # 提取 time
         execs_val = int(match.group(2))  # 提取 execs
-
-
-
+        # 先转为秒
+        time_val /= 1000
+        # 再把时间转为分钟，这里使用向上取整，因为我们希望能保留 time = 0 和 execs = 0，其它都算作1分钟的
+        time_val = math.ceil(time_val / 60)
+        # 构建为 InputFile 对象
+        inputfile = InputFile(time=time_val, execs=execs_val)
+        InputFile_list.append(inputfile)
+    # 按照时间排序
+    InputFile_list.sort(key=lambda x : x.time)
+    # 构建 DataFrame
+    time_list = []
+    execs_list = []
+    corpus_count_list = []
+    corpus_count = 0
+    for inputfile in InputFile_list:
+        time_list.append(inputfile.time)
+        execs_list.append(inputfile.execs)
+        corpus_count += 1
+        corpus_count_list.append(corpus_count)
+    data = {
+        "# relative_time" : time_list,
+        "total_execs"     : execs_list,
+        "corpus_count"     : corpus_count_list,
+    }
+    df = pd.DataFrame(data)
+    # 按 '# relative_time' 分组，找到每组的最大 'total_execs'
+    df['total_execs'] = df.groupby('# relative_time')['total_execs'].transform('max')
+    # 按 '# relative_time' 分组，找到每组的最大 'corpus_count'
+    df['corpus_count'] = df.groupby('# relative_time')['corpus_count'].transform('max')
+    # 按 '# relative_time' 列去重，保留第一行（默认）
+    df = df.drop_duplicates(subset='# relative_time', keep='first')
 
     # 打印信息，表示这个数据收集任务已完成
     with finished_tasks.get_lock():
         finished_tasks.value += 1
-        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME}-{parallel_id} data collect")
+        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME} data collect")
         sys.stdout.flush()
     # 返回存储数据的 DataFrame，也就是 df，前面的几个元素是为了标识这个 df 属于哪个 PROGRAM-FUZZER-TIME
-    return (FUZZER, TARGET, PROGRAM, TIME, parallel_id, df)
+    return (FUZZER, TARGET, PROGRAM, TIME, df)
 # 被并行执行的函数 --------------------------------------------------------------- end
 
 # 获取当前机器上的 CPU cores 总数，方便后续并行操作
@@ -142,10 +177,9 @@ for PROGRAM in PROGRAMS:
 
                 # 分配一个 CPU cores，让它收集当前 PROGRAM-FUZZER-TIME 的 plot_data 信息，结果存放于 results 列表
                 for TIME in TIMES:
-                    for parallel_id in PARALLEL_IDS:
-                        result = pool.apply_async(collect_data_worker, (FUZZER, TARGET, PROGRAM, TIME, parallel_id))
-                        task_count += 1
-                        results.append(result)
+                    result = pool.apply_async(collect_data_worker, (FUZZER, TARGET, PROGRAM, TIME))
+                    task_count += 1
+                    results.append(result)
 
 # 打印看看一共有多少个并行任务在运行
 print(f"================== There are {len(results)} data collect tasks in total ==================")
@@ -155,7 +189,36 @@ sys.stdout.flush()
 for result in results:
     result.wait()
 
-############################################### 3. 定义绘图函数   ################################################## 完成
+############################################### 3. 统计各程序 max_execs   ################################################## 完成
+# 这一部分的目的，是为了确认各个 PROGRAM 的执行次数横轴图的最大执行次数
+# 因为不同 FUZZERS 执行速率不一样，所以哪怕运行相同的时间，最后产生的最大执行次数可能差很多
+# 我这里是取执行速率最慢的 FUZZERS 的最大执行次数，作为绘图的最大执行次数
+
+# 这个字典的 key 是 PROGRAM, value 是该 PROGRAM 在所有 FUZZERS 中最小的 max_execs
+max_execs_dict = {}
+
+# 统计每个 PROGRAM 在所有 FUZZERS 中最小的 max_execs，存放于 max_execs_dict 中
+for PROGRAM in PROGRAMS:
+    # 找到当前 PROGRAM 在所有 FUZZERS 中最小的 max_execs
+    max_execs = float('inf')
+    for FUZZER in FUZZERS:
+        # 在 results 列表中找到 当前 PROGRAM-FUZZER 的所有数据，存放于 dfs 列表中
+        dfs = []
+        for result in results:
+            fuzz_result = result.get()
+            if fuzz_result[0] != FUZZER or fuzz_result[2] != PROGRAM:
+                continue
+            dfs.append(fuzz_result[4])
+        # 收集完后，一共能收集到 REPEAT 个 df
+        assert(len(dfs) == REPEAT)
+        # 在 dfs 列表中找到最小的 max_execs
+        for df in dfs:
+            if df["total_execs"].max() < max_execs:
+                max_execs = df["total_execs"].max() 
+    # 把这个 PROGRAM 在所有实验中的最小的 max_execs 存放于 max_execs_dict 字典中
+    max_execs_dict[PROGRAM] = max_execs
+
+############################################### 4. 定义绘图函数   ################################################## 完成
 # name: 决定 y轴 和图的名字
 # colname: plot_data 中和 y轴 相应那一列的列名
 # accumulate: 这一列是否属于 “积累” 属性？ (crash, seed 属于积累属性, Throughput 不属于)
@@ -255,4 +318,40 @@ pool.close()
 pool.join()
 exit(0)  
 
+# """用来收集 seed_time 数据的工作函数"""
+# def seed_time_worker(FUZZER, TARGET, thePROGRAM, TIME, task_count):
+#     seed_time_slot = [0] * SPLIT_NUM
+#     path = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/queue/"
+#     files = getfiles(path)
+#     for seed_file in files:
+#         matches = re.findall(r"time:(\d+)", seed_file)
+#         assert(len(matches) < 2)
+#         if matches:
 
+# # 转化时间为正确单位的函数
+# def convert_Time(original_time):
+#     # CHANGE: 正确地转化时间
+#     # 先转为秒
+#     original_time /= 1000
+#     # 再转为分
+#     original_time /= 60
+#     # 再转为小时
+#     original_time /= 60
+#     # 向下取整
+#     original_time = int(original_time)
+#     return original_time
+#             seed_time = convert_Time(int(matches[0]))
+
+#             # 如果时间戳没有超过配置最大值，那么记录数据
+#             if seed_time < SPLIT_NUM:
+#                 seed_time_slot[seed_time] += 1
+#     # 从增量数组转为存量数组
+#     for i in range(SPLIT_NUM-1):
+#         seed_time_slot[i+1] += seed_time_slot[i]
+#     # 打印表示目前任务已完成(需要加锁)
+#     global finished_tasks
+#     with finished_tasks.get_lock():
+#         finished_tasks.value += 1
+#         print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{thePROGRAM}-{TIME} data collect")
+#         sys.stdout.flush()
+#     return (FUZZER, TARGET, thePROGRAM, TIME, seed_time_slot)
