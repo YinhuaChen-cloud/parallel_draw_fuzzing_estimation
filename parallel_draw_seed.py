@@ -121,11 +121,17 @@ def do_hash(FUZZER, TARGET, PROGRAM, TIME, parallel_id):
         file_path = queue_path + "/" + file
         file_hash = calculate_file_hash(file_path)
         if file_hash:
-            hashpool[file_hash] = {}
-            hashpool[file_hash]["time"] = time_val
-            hashpool[file_hash]["execs"] = execs_val
+            if file_hash not in hashpool:
+                hashpool[file_hash] = {}
+                hashpool[file_hash]["time"] = time_val
+                hashpool[file_hash]["execs"] = execs_val
+            else:
+                if time_val < hashpool[file_hash]["time"]:
+                    hashpool[file_hash]["time"] = time_val
+                    hashpool[file_hash]["execs"] = execs_val
         else:
             print(f"Failed to process {file_path}.")
+
 
     # 打印信息，表示这个数据收集任务已完成
     with finished_tasks.get_lock():
