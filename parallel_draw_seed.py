@@ -42,7 +42,7 @@ def getfiles(basedir):
     return files
 
 class InputFile:
-    def __init__(self, time: int, execs: int, filename: str):
+    def __init__(self, time: int, execs: int):
         self.time = time
         self.execs = execs
 
