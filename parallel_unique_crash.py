@@ -85,7 +85,7 @@ for i in range(len(PROGRAMS_list)):
 
 PROGRAMS = PROGRAMS_list[0]
 
-###################### 2. 把 PARALLEL_IDS 下所有 IDS 的 queues 整合到一个 大 queue 里 ########################## 完成
+###################### 2. 把 PARALLEL_IDS 下所有 IDS 的 crashes 整合到一个 大 crash 里 ########################## 完成
 
 # 一个全局变量，被所有并行任务共享，标识已经完成的任务数量
 finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
@@ -94,7 +94,7 @@ finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
 def unique_files(FUZZER, TARGET, PROGRAM, TIME):
     # 创建一个 unique dir
     # mkdir -p unique dir
-    unique_dir_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/queue"
+    unique_dir_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/crash"
     try:
         os.makedirs(unique_dir_path, exist_ok=True)
     except Exception as e:
@@ -106,7 +106,7 @@ def unique_files(FUZZER, TARGET, PROGRAM, TIME):
     # 遍历所有的文件，筛去一部分，计算 hash，若有重复 hash，保留时间上最小的文件，时间相同则按照 PARALLEL_IDS 顺序保留
     for parallel_id in PARALLEL_IDS:
         # 当前这个 PROGRAM-FUZZER-TIME 所对应的 plot_data 文件路径
-        queue_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/" + parallel_id + "/queue"
+        queue_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/" + parallel_id + "/crash"
         # 读取所有文件，仅仅保留有 time:(\d+),execs:(\d+) 的文件
         allfiles = getfiles(queue_path)
         pattern = r"time:(\d+),execs:(\d+),"
