@@ -92,6 +92,7 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME, parallel_id):
 
 
 
+
     # 打印信息，表示这个数据收集任务已完成
     with finished_tasks.get_lock():
         finished_tasks.value += 1
@@ -262,3 +263,33 @@ pool.join()
 exit(0)  
 
 
+
+    # crash_time_slot = [0] * SPLIT_NUM
+    # path = FUZZER + "/" + TARGET + "/" + thePROGRAM + "/" + TIME + "/findings/default/crashes/"
+    # files = getfiles(path)
+    # for crash_file in files:
+    #     matches = re.findall(r"time:(\d+)", crash_file)
+    #     assert(len(matches) < 2)
+    #     if matches:
+    #         crash_time = int(matches[0])
+    #         # 先转为秒
+    #         crash_time /= 1000
+    #         # 再转为分
+    #         crash_time /= 60
+    #         # 再转为小时
+    #         crash_time /= 60
+    #         # 向下取整
+    #         crash_time = int(crash_time)
+    #         # 如果时间戳没有超过配置最大值，那么记录数据
+    #         if crash_time < SPLIT_NUM:
+    #             crash_time_slot[crash_time] += 1
+    # # 从增量数组转为存量数组
+    # for i in range(SPLIT_NUM-1):
+    #     crash_time_slot[i+1] += crash_time_slot[i]
+    # # 打印表示目前任务已完成(需要加锁)
+    # global finished_tasks
+    # with finished_tasks.get_lock():
+    #     finished_tasks.value += 1
+    #     print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{thePROGRAM}-{TIME} data collect")
+    #     sys.stdout.flush()
+    # return (FUZZER, TARGET, thePROGRAM, TIME, crash_time_slot)
