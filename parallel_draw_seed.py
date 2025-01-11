@@ -8,8 +8,9 @@ import copy
 import csv
 import pandas as pd
 import math
+import hashlib
 
-############################################### 0. 配置部分         ################################################## 完成
+############################################### 0. 配置部分         ################################################## --- doing
 TOTAL_TIME = 2160 # 单位分钟
 FUZZERS = ["aflplusplus", "fixversion"]
 TARGETS = ["base64", "libpng", "libsndfile", "libtiff", "libxml2", "md5sum", "php", "sqlite3", "uniq", "who"]
@@ -30,6 +31,9 @@ draw_configure = {
 # 如果开启了并行 fuzz，那么 Master-Slave 机制下的 IDs 列表
 PARALLEL_IDS = ["Master", "Slave1", "Slave2"]
 
+# 全局统一的哈希对象
+hash_func = hashlib.new('sha256')
+
 ############################################### 一些常用常数、函数的定义(尽量别修改) ############################## 完成
 SPLIT_UNIT = 1
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
@@ -39,6 +43,24 @@ def getsubdir(basedir):
     subdirs = [d for d in os.listdir(basedir) 
         if os.path.isdir(os.path.join(basedir, d)) and not d.startswith('.') ]
     return sorted(subdirs)
+
+# 定义获取文件的函数
+def getfiles(basedir):
+    files = [f for f in os.listdir(basedir) 
+        if os.path.isfile(os.path.join(basedir, f)) and not f.startswith('.')]
+    return files
+
+def calculate_file_hash(filename):
+    try:
+        # 读取整个文件内容
+        with open(filename, 'rb') as f:
+            content = f.read()
+            hash_func.update(content)
+        # 返回哈希值的十六进制字符串
+        return hash_func.hexdigest()
+    except Exception as e:
+        print(f"Error processing file {filename}: {e}")
+        return None
 
 ######################################## 1. 验证 fuzzing result 是否有异常 ###################################### 完成 
 # 首先验证 WORKDIR是否正确
@@ -76,8 +98,86 @@ for i in range(len(PROGRAMS_list)):
 
 PROGRAMS = PROGRAMS_list[0]
 
-############################################### 2. 对所有文件 ############################### 
+############################################### 2. 对所有 queue 所有文件读取，获取 time，execs，并去重 ############################### --- doing
 
+# 一个全局变量，被所有并行任务共享，标识已经完成的任务数量
+finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
+
+# 被并行执行的函数 --------------------------------------------------------------- start 
+def do_hash(FUZZER, TARGET, PROGRAM, TIME, parallel_id):
+    # 当前这个 PROGRAM-FUZZER-TIME 所对应的 plot_data 文件路径
+    queue_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/" + parallel_id + "/queue"
+    # 读取所有文件，仅仅保留有 time:(\d+),execs:(\d+) 的文件
+    allfiles = getfiles(queue_path)
+    pattern = r"time:(\d+),execs:(\d+),"
+    matching_files = [s for s in allfiles if re.search(pattern, s)]
+    # 提取 time 和 execs，计算 hash，存入哈希池
+    hashpool = {}
+    for file in matching_files:
+        print(file)
+        match = re.search(pattern, file)
+        assert(match)
+        time_val = int(match.group(1))  # 提取 time
+        execs_val = int(match.group(2))  # 提取 execs
+        file_path = queue_path + "/" + file
+        file_hash = calculate_file_hash(file_path)
+        if file_hash:
+            hashpool[file_hash] = {}
+            hashpool[file_hash]["time"] = time_val
+            hashpool[file_hash]["execs"] = execs_val
+        else:
+            print(f"Failed to process {file_path}.")
+
+    # 打印信息，表示这个数据收集任务已完成
+    with finished_tasks.get_lock():
+        finished_tasks.value += 1
+        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME}-{parallel_id} data collect")
+        sys.stdout.flush()
+    # 返回存储数据的 DataFrame，也就是 df，前面的几个元素是为了标识这个 df 属于哪个 PROGRAM-FUZZER-TIME
+    return (FUZZER, TARGET, PROGRAM, TIME, parallel_id, hashpool)
+# 被并行执行的函数 --------------------------------------------------------------- end
+
+# 获取当前机器上的 CPU cores 总数，方便后续并行操作
+num_cores = multiprocessing.cpu_count()
+print(f'CPU 核心数量: {num_cores}')
+sys.stdout.flush()
+
+# 创建一个进程池，池中进程的数量等于 CPU 核心数量
+pool = multiprocessing.Pool(num_cores)
+# 储存收集数据结果的队列
+results = []
+# 任务数计数器，也可以叫任务序号计数器
+task_count = 0
+
+for PROGRAM in PROGRAMS:
+    for FUZZER in FUZZERS:
+        for TARGET in TARGETS:
+            path = FUZZER + "/" + TARGET
+            thePROGRAMS = getsubdir(path)
+            for thePROGRAM in thePROGRAMS:
+                if thePROGRAM != PROGRAM:
+                    continue
+
+                # 验证 fuzzing result 的 repeat_times 是否和我们的 0.配置部分 一致
+                path = FUZZER + "/" + TARGET + "/" + PROGRAM
+                TIMES = getsubdir(path)
+                assert(len(TIMES) == REPEAT)
+                for TIME in TIMES:
+                    assert(int(TIME) < REPEAT)
+
+                for TIME in TIMES:
+                    for parallel_id in PARALLEL_IDS:
+                        result = pool.apply_async(do_hash, (FUZZER, TARGET, PROGRAM, TIME, parallel_id))
+                        task_count += 1
+                        results.append(result)
+
+# 打印看看一共有多少个并行任务在运行
+print(f"================== There are {len(results)} data collect tasks in total ==================")
+sys.stdout.flush()
+
+# 等待所有并行任务结束
+for result in results:
+    result.wait()
 
 sys.exit(0)
 
