@@ -10,7 +10,7 @@ import pandas as pd
 import math
 
 ############################################### 0. 配置部分         ##################################################
-TOTAL_TIME = 60 # 单位分钟
+TOTAL_TIME = 2160 # 单位分钟
 FUZZERS = ["aflplusplus", "fixversion"]
 TARGETS = ["libpng", "libsndfile", "libtiff"]
 # 表明这个脚本所运行的文件夹
