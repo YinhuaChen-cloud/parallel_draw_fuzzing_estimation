@@ -36,6 +36,7 @@ def getfiles(basedir):
         if os.path.isfile(os.path.join(basedir, f)) and not f.startswith('.')]
     return files
 
+# 根据 filename 文件的文件内容计算 hash
 def calculate_file_hash(filename):
     try:
         # 读取整个文件内容
@@ -84,7 +85,7 @@ for i in range(len(PROGRAMS_list)):
 
 PROGRAMS = PROGRAMS_list[0]
 
-###################### 2. 把 PARALLEL_IDS 下所有 IDS 的 queues 整合到一个 大 queue 里 ########################## --- doing
+###################### 2. 把 PARALLEL_IDS 下所有 IDS 的 queues 整合到一个 大 queue 里 ########################## 完成
 
 # 一个全局变量，被所有并行任务共享，标识已经完成的任务数量
 finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
@@ -96,25 +97,25 @@ def unique_files(FUZZER, TARGET, PROGRAM, TIME):
     unique_dir_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/queue"
     try:
         os.makedirs(unique_dir_path, exist_ok=True)
-        print(f"Directory '{unique_dir_path}' created successfully or already exists.")
     except Exception as e:
         print(f"Failed to create directory '{unique_dir_path}': {e}")
 
     # 创建 hashpool，用来唯一化文件
     hashpool = {}
 
-    # 遍历的文件，筛去一部分，计算 hash，若有重复 hash，保留时间上最小的文件，时间相同则按照 PARALLEL_IDS 顺序保留
+    # 遍历所有的文件，筛去一部分，计算 hash，若有重复 hash，保留时间上最小的文件，时间相同则按照 PARALLEL_IDS 顺序保留
     for parallel_id in PARALLEL_IDS:
         # 当前这个 PROGRAM-FUZZER-TIME 所对应的 plot_data 文件路径
         queue_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/" + parallel_id + "/queue"
         # 读取所有文件，仅仅保留有 time:(\d+),execs:(\d+) 的文件
         allfiles = getfiles(queue_path)
         pattern = r"time:(\d+),execs:(\d+),"
-        matching_files = [s for s in allfiles if re.search(pattern, s)]
-        # 遍历被保留的文件，计算 hash，若有重复 hash，保留时间上最小的文件，时间相同则按照 PARALLEL_IDS 顺序保留
-        for file in matching_files:
+        # 遍历所有的文件，筛去一部分，计算 hash，若有重复 hash，保留时间上最小的文件，时间相同则按照 PARALLEL_IDS 顺序保留
+        for file in allfiles:
             match = re.search(pattern, file)
-            assert(match)
+            # 筛去没有 "time:(\d+),execs:(\d+)," 的文件
+            if not match:
+                continue
             time_val = int(match.group(1))  # 提取 time
             execs_val = int(match.group(2))  # 提取 execs
             file_path = queue_path + "/" + file
@@ -191,6 +192,4 @@ sys.stdout.flush()
 # 等待所有并行任务结束
 for result in results:
     result.wait()
-
-
 
