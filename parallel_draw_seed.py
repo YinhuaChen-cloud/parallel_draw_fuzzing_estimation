@@ -9,7 +9,7 @@ import csv
 import pandas as pd
 import math
 
-############################################### 0. 配置部分         ################################################## 完成
+############################################### 0. 配置部分         ################################################## --- doing
 TOTAL_TIME = 2160 # 单位分钟
 FUZZERS = ["aflplusplus", "fixversion"]
 TARGETS = ["base64", "libpng", "libsndfile", "libtiff", "libxml2", "md5sum", "php", "sqlite3", "uniq", "who"]
@@ -24,9 +24,6 @@ draw_configure = {
     "throughput_time": True,
 }
 
-# 如果开启了并行 fuzz，那么 Master-Slave 机制下的 IDs 列表
-PARALLEL_IDS = ["Master", "Slave1", "Slave2"]
-
 ############################################### 一些常用常数、函数的定义(尽量别修改) ############################## 完成
 SPLIT_UNIT = 1
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
@@ -36,6 +33,12 @@ def getsubdir(basedir):
     subdirs = [d for d in os.listdir(basedir) 
         if os.path.isdir(os.path.join(basedir, d)) and not d.startswith('.') ]
     return sorted(subdirs)
+
+# 定义获取文件的函数
+def getfiles(basedir):
+    files = [f for f in os.listdir(basedir) 
+        if os.path.isfile(os.path.join(basedir, f)) and not f.startswith('.')]
+    return files
 
 ######################################## 1. 验证 fuzzing result 是否有异常 ###################################### 完成 
 # 首先验证 WORKDIR是否正确
@@ -73,19 +76,26 @@ for i in range(len(PROGRAMS_list)):
 
 PROGRAMS = PROGRAMS_list[0]
 
-############################################### 2. 并行读取绘图所需数据 (plot_data) ############################### 完成
+############################################### 2. 并行读取绘图所需数据 (plot_data) ############################### --- doing
 
 # 一个全局变量，被所有并行任务共享，标识已经完成的任务数量
 finished_tasks = multiprocessing.Value('i', 0)  # 'i' 表示整数
 
 # 被并行执行的函数 --------------------------------------------------------------- start 
-def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME, parallel_id):
+def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
     # 当前这个 PROGRAM-FUZZER-TIME 所对应的 plot_data 文件路径
-    plot_data_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/" + parallel_id + "/plot_data"
-    # plot_data 是 csv 格式的，所以我们可以使用 pandas.DataFrame 的 csv API 读取它
-    df = pd.read_csv(plot_data_path)
-    # 把所有列表的首尾空白字符去掉
-    df.columns = df.columns.str.strip()
+    queue_path = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/queue"
+    allfiles = getfiles(queue_path)
+    pattern = r"time:(\d+),execs:(\d+),"
+    for file in allfiles:
+        # unique 文件夹内的都被筛过，必定 match
+        match = re.search(pattern, file)
+        assert(match)
+        time_val = int(match.group(1))  # 提取 time
+        execs_val = int(match.group(2))  # 提取 execs
+
+
+
 
     # 打印信息，表示这个数据收集任务已完成
     with finished_tasks.get_lock():
