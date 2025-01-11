@@ -218,7 +218,7 @@ for PROGRAM in PROGRAMS:
     # 把这个 PROGRAM 在所有实验中的最小的 max_execs 存放于 max_execs_dict 字典中
     max_execs_dict[PROGRAM] = max_execs
 
-############################################### 4. 定义绘图函数   ################################################## 完成
+############################################### 4. 定义绘图函数   ################################################## --- doing
 # name: 决定 y轴 和图的名字
 # colname: plot_data 中和 y轴 相应那一列的列名
 # accumulate: 这一列是否属于 “积累” 属性？ (crash, seed 属于积累属性, Throughput 不属于)
@@ -309,8 +309,11 @@ def draw_time(name: str, colname: str, accumulate: bool):
 
 ############################################### 4. 绘制 throughput_time 图    ################################################## 完成
 
-if draw_configure["throughput_time"]:
-    draw_time("execs_per_sec", "execs_per_sec", False)
+if draw_configure["seed_time"]:
+    draw_time("seed", "corpus_count", True)
+
+if draw_configure["seed_execs"]:
+    draw_execs("seed", "corpus_count", True)
 
 ############################################### 5. 要结束了                   ################################################## 完成
 # 关闭并行任务池子、退出
