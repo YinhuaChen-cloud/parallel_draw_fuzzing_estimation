@@ -328,7 +328,7 @@ def draw_execs(name: str, colname: str, accumulate: bool):
                     continue
                 dfs.append(fuzz_result[4])
             # 验证 REPEAT 是否和 dfs 收集到的数量一致
-            assert(len(dfs) == REPEAT))
+            assert(len(dfs) == REPEAT)
             # 每个 df 都是一个 PROGRAM-FUZZER-TIME-parallel_id 的 plot_data，可以绘制成一条线
             # 我们要对这些 df 的值取平均
             # slot_list 就是用来存放绘图数据数组的列表
