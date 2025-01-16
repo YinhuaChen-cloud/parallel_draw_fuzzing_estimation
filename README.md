@@ -1,5 +1,35 @@
 # 通过并行方法绘制 fuzzing 结果曲线图
 
+### 绘制 Throughput
+
+TODO: here
+
+---
+
+### 绘制 seeds
+
+TODO: here
+
+---
+
+### 绘制 crashes
+
+TODO: here
+
+---
+
+### 绘制 edges
+
+TODO: here
+
+---
+
+### 绘制 bugs
+
+TODO: here
+
+---
+
 一共五个文件夹，五个 .py 绘图代码
 
 draw_normal: 绘制 crash, seed 的时间横轴图以及执行次数(execs)横轴图。同时会绘制 Throughput
@@ -17,7 +47,4 @@ draw_bug_docker: 绘制 bug(去重) 的时间横轴图以及执行次数(execs)�
 目前可有的有：
 - draw_normal
 - draw_edge_singularity
-
-
-
 
