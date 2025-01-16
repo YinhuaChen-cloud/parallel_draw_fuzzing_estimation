@@ -2,7 +2,13 @@
 
 ### 绘制 Throughput
 
-TODO: here
+在 parallel_common.sh 设置好参数，随后：
+```bash
+cp parallel_common.sh parallel_throughput.py workdir/cache 
+cd workdir/cache
+python3 parallel_throughput.py
+```
+TODO:
 
 ---
 
@@ -19,7 +25,7 @@ TODO: here
 ---
 
 ### 绘制 edges
-
+gg
 TODO: here
 
 ---
