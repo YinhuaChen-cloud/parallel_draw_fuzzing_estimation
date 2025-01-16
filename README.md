@@ -9,6 +9,7 @@ cd <储存fuzzing结果的workdir>/cache
 python3 parallel_throughput.py
 ```
 会在 cache 目录下生成 throughput 的 .svg 图片
+TODO: 等待测试
 
 ---
 
@@ -21,7 +22,15 @@ cd <储存fuzzing结果的workdir>/cache
 python3 parallel_unique.py
 ```
 会在 cache 目录各个 FUZZER/TARGET/PROGRAM/0/findings 下生成一个 unique 文件夹，里面包含去重后的 crashes 和 queue 文件夹
-TODO: 正在写代码
+TODO: 等待测试
+
+绘制图片后，还需要运行 xxx.py 删除掉所有的 unique 文件夹，避免下次绘图的时候产生冲突:
+```bash
+cp parallel_common.py parallel_delete_unique.py <储存fuzzing结果的workdir>/cache 
+cd <储存fuzzing结果的workdir>/cache 
+python3 parallel_delete_unique.py
+```
+TODO: 等待测试
 
 ---
 

@@ -3,6 +3,7 @@ import os
 import multiprocessing
 import matplotlib.pyplot as plt
 import math
+import hashlib
 
 ######################################## 0. 配置部分 ########################################## checked
 TOTAL_TIME = 60 * 6 # 单位分 钟
@@ -20,6 +21,9 @@ PARALLEL_IDS = ["Master", "Slave1", "Slave2"]
 # 在环境验证阶段被填充
 PROGRAMS = []
 
+# 全局统一的哈希对象
+HASH_FUNC = hashlib.new('sha256')
+
 ########################## 1. 一些常用常数、函数的定义(尽量别修改) ############################### checked
 SPLIT_UNIT = 1
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
@@ -35,6 +39,19 @@ def getfiles(basedir):
     files = [f for f in os.listdir(basedir) 
         if os.path.isfile(os.path.join(basedir, f)) and not f.startswith('.')]
     return files
+
+# 根据 filename 文件的文件内容计算 hash
+def calculate_file_hash(filename):
+    try:
+        # 读取整个文件内容
+        with open(filename, 'rb') as f:
+            content = f.read()
+            HASH_FUNC.update(content)
+        # 返回哈希值的十六进制字符串
+        return HASH_FUNC.hexdigest()
+    except Exception as e:
+        print(f"Error processing file {filename}: {e}")
+        return None
 
 class InputFile:
     def __init__(self, time: int, execs: int):
