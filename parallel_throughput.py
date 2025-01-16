@@ -25,7 +25,7 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME, parallel_id):
     return (FUZZER, TARGET, PROGRAM, TIME, parallel_id, df)
 # 被并行执行的函数 --------------------------------------------------------------- end
 
-results = parallel_framework(collect_data_worker)
+results = parallel_framework(collect_data_worker, need_parallel_id=True)
 
 #################################### 3. 绘制 throughput_time 图 ############################################ checked
 draw_time("execs_per_sec", "execs_per_sec", False, results)

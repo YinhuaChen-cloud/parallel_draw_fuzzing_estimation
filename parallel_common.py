@@ -36,6 +36,11 @@ def getfiles(basedir):
         if os.path.isfile(os.path.join(basedir, f)) and not f.startswith('.')]
     return files
 
+class InputFile:
+    def __init__(self, time: int, execs: int):
+        self.time = time
+        self.execs = execs
+
 ############################ 2. 验证 fuzzing result 是否有异常 ################################# checked
 def verify_environment():
     # 首先验证 WORKDIR是否正确
@@ -79,7 +84,7 @@ def verify_environment():
 # 一个全局变量，被所有并行任务共享，标识已经完成的任务数量
 FINISHED_TASKS = multiprocessing.Value('i', 0)  # 'i' 表示整数
 
-def parallel_framework(collect_data_worker):
+def parallel_framework(collect_data_worker, need_parallel_id: bool):
     # 获取当前机器上的 CPU cores 总数，方便后续并行操作
     num_cores = multiprocessing.cpu_count()
     print(f'CPU 核心数量: {num_cores}')
@@ -116,8 +121,13 @@ def parallel_framework(collect_data_worker):
 
                     # 分配一个 CPU cores，让它收集当前 PROGRAM-FUZZER-TIME 的 plot_data 信息，结果存放于 results 列表
                     for TIME in TIMES:
-                        for parallel_id in PARALLEL_IDS:
-                            result = pool.apply_async(collect_data_worker, (FUZZER, TARGET, PROGRAM, TIME, parallel_id))
+                        if need_parallel_id:
+                            for parallel_id in PARALLEL_IDS:
+                                result = pool.apply_async(collect_data_worker, (FUZZER, TARGET, PROGRAM, TIME, parallel_id))
+                                task_count += 1
+                                results.append(result)
+                        else:
+                            result = pool.apply_async(collect_data_worker, (FUZZER, TARGET, PROGRAM, TIME))
                             task_count += 1
                             results.append(result)
 
