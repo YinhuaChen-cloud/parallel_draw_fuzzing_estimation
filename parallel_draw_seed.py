@@ -15,6 +15,9 @@ from parallel_common import *
 verify_environment()
 
 ######################################## 2. 并行读取绘图所需数据 (queue) #################################### doing
+
+
+
 # 被并行执行的函数 --------------------------------------------------------------- start 
 def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
     # 返回一个 DataFrame
