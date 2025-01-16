@@ -3,10 +3,10 @@ import pandas as pd
 
 from parallel_common import *
 
-######################################## 1. 验证 fuzzing result 是否有异常 ###################################### 完成 
+######################################## 1. 验证 fuzzing result 是否有异常 ###################################### checked
 verify_environment()
 
-######################################## 2. 并行读取绘图所需数据 (plot_data) ####################################
+######################################## 2. 并行读取绘图所需数据 (plot_data) #################################### checked
 # 被并行执行的函数 --------------------------------------------------------------- start 
 def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME, parallel_id):
     # 当前这个 PROGRAM-FUZZER-TIME 所对应的 plot_data 文件路径
@@ -27,7 +27,7 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME, parallel_id):
 
 results = parallel_framework(collect_data_worker)
 
-############################################### 3. 绘制 throughput_time 图    ################################################## 完成
+#################################### 3. 绘制 throughput_time 图 ############################################ checked
 draw_time("execs_per_sec", "execs_per_sec", False, results)
 
 

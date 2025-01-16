@@ -4,7 +4,7 @@ import multiprocessing
 import matplotlib.pyplot as plt
 import math
 
-######################################## 0. 配置部分 ##########################################
+######################################## 0. 配置部分 ########################################## checked
 TOTAL_TIME = 60 * 6 # 单位分 钟
 FUZZERS = ["aflplusplus", "fixversion"]
 TARGETS = ["base64", "md5sum", "uniq", "who"]
@@ -14,33 +14,29 @@ WORKDIR = "cache"
 REPEAT=1
 # 这次绘图命名的特殊后缀，比如 _empty or _full 之类的
 SPECIFIC_SUFFIX = "_all"
-# 决定绘制哪些图，不绘制哪些图
-draw_configure = {
-    "throughput_time": True,
-}
 # 如果开启了并行 fuzz，那么 Master-Slave 机制下的 IDs 列表
 PARALLEL_IDS = ["Master", "Slave1", "Slave2"]
 
 # 在环境验证阶段被填充
 PROGRAMS = []
 
-########################## 1. 一些常用常数、函数的定义(尽量别修改) ###############################
+########################## 1. 一些常用常数、函数的定义(尽量别修改) ############################### checked
 SPLIT_UNIT = 1
 SPLIT_NUM = int(TOTAL_TIME / SPLIT_UNIT) + 1 # 绘图时，x 轴的有效点数量
 
-# 获取 basedir 下的子目录列表
+# 获取 basedir 下的子目录列表 (不包含隐藏目录)
 def getsubdir(basedir):
     subdirs = [d for d in os.listdir(basedir) 
         if os.path.isdir(os.path.join(basedir, d)) and not d.startswith('.') ]
     return sorted(subdirs)
 
-# 定义获取文件的函数
+# 定义获取文件的函数 (不包含隐藏文件)
 def getfiles(basedir):
     files = [f for f in os.listdir(basedir) 
         if os.path.isfile(os.path.join(basedir, f)) and not f.startswith('.')]
     return files
 
-############################ 2. 验证 fuzzing result 是否有异常 #################################
+############################ 2. 验证 fuzzing result 是否有异常 ################################# checked
 def verify_environment():
     # 首先验证 WORKDIR是否正确
     current_directory = os.getcwd()
@@ -79,7 +75,7 @@ def verify_environment():
     for p in PROGRAMS_list[0]:
         PROGRAMS.append(p)
 
-############################### 3. 并行数据收集框架 ##########################################
+############################### 3. 并行数据收集框架 ########################################## checked
 # 一个全局变量，被所有并行任务共享，标识已经完成的任务数量
 FINISHED_TASKS = multiprocessing.Value('i', 0)  # 'i' 表示整数
 
@@ -139,7 +135,7 @@ def parallel_framework(collect_data_worker):
             
     return results
 
-################################# 4. 定义绘图函数 ############################################
+################################# 4. 定义绘图函数 ############################################ checked
 # name: 决定 y轴 和图的名字
 # colname: plot_data 中和 y轴 相应那一列的列名
 # accumulate: 这一列是否属于 “积累” 属性？ (crash, seed 属于积累属性, Throughput 不属于)
@@ -147,7 +143,7 @@ def parallel_framework(collect_data_worker):
 # 路程是可以积累的，速度是不能积累的。学习的知识是可以积累的，学习的速度是不能积累的
 # 这就是 “积累” 属性
 # results: 并行计算结果
-def draw_time(name: str, colname: str, accumulate: bool, results):
+def draw_time(name: str, colname: str, accumulate: bool, results: list):
     # 每一个 PROGRAM 绘制一张图 (FUZZERS 是这张图上的 legend)
     for PROGRAM in PROGRAMS:
 
