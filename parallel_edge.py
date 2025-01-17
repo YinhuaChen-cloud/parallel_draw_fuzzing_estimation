@@ -105,7 +105,7 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
         TASK_COUNT.value += 1
         print(f"{TASK_COUNT.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME} data collect")
         sys.stdout.flush()
-        task_count = TASK_COUNT
+        task_count = TASK_COUNT.value
 
     df = None
     try:
@@ -169,7 +169,7 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
         # class 包含：time, execs, filepath, triggered_edges
         edge_set_accumulate = {}
         for inputfile in filterfiles:
-            edge_set = getEdges(put, PROGRAM, inputfile.filename, "mapfile" + str(task_count), task_count)
+            edge_set = getEdges(put, PROGRAM, inputfile.filepath, "mapfile" + str(task_count), task_count)
             edge_set_accumulate.update(edge_set)
             inputfile.edges = len(edge_set_accumulate)
 
@@ -208,6 +208,6 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
 ############################################### 4. 绘制 edge 图   ################################################## checked
 results = parallel_framework(collect_data_worker, need_parallel_id=False)
 max_execs_dict = get_max_execs_dict(results)   
-draw_time("edge", "file_count", True, results, need_parallel_id=False)
-draw_execs("edge", "file_count", True, results, max_execs_dict, need_parallel_id=False)
+draw_time("edge", "edges_found", True, results, need_parallel_id=False)
+draw_execs("edge", "edges_found", True, results, max_execs_dict, need_parallel_id=False)
 

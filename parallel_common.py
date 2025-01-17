@@ -119,8 +119,9 @@ def parallel_framework(collect_data_worker, need_parallel_id: bool):
     results = []
 
     # 任务数计数器，也可以叫任务序号计数器
+    global TASK_COUNT
     with TASK_COUNT.get_lock():
-        TASK_COUNT = 0
+        TASK_COUNT.value = 0
 
     # 为每一个 program-fuzzer-repeat_time 收集 plot_data 数据
     for PROGRAM in PROGRAMS:
