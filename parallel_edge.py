@@ -2,7 +2,6 @@ import re
 import sys
 import copy
 import pandas as pd
-import math
 import subprocess
 
 from parallel_common import *
