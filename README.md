@@ -60,7 +60,7 @@ docker pull chenyinhua/afl-showmap-image:latest
 docker run chenyinhua/afl-showmap-image /magma/fuzzers/aflplusplus/repo/afl-showmap
 ```
 
-TODO: 写代码中
+TODO: 等待测试
 
 ---
 
@@ -69,6 +69,9 @@ TODO: 写代码中
 TODO: here
 
 ---
+
+
+
 
 
 一共五个文件夹，五个 .py 绘图代码
@@ -88,4 +91,5 @@ draw_bug_docker: 绘制 bug(去重) 的时间横轴图以及执行次数(execs)�
 目前可有的有：
 - draw_normal
 - draw_edge_singularity
+
 
