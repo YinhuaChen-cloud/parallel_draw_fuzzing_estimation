@@ -94,12 +94,18 @@ def getEdges(put, program, filename, mapfile, task_count):
     # 返回字典
     return triggered_edges_set 
 
-########################################### 3. 并行获取 edges 所需数据 ###################################### doing
+########################################### 3. 并行获取 edges 所需数据 ###################################### checked
 # 被并行执行的函数 --------------------------------------------------------------- start
-def edge_data_collector(FUZZER, TARGET, PROGRAM, TIME, task_count):
+def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
 
     print(f"start {FUZZER}-{TARGET}-{PROGRAM}-{TIME} data collect")
     sys.stdout.flush()
+
+    with TASK_COUNT.get_lock():
+        TASK_COUNT.value += 1
+        print(f"{TASK_COUNT.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME} data collect")
+        sys.stdout.flush()
+        task_count = TASK_COUNT
 
     df = None
     try:
@@ -115,28 +121,29 @@ def edge_data_collector(FUZZER, TARGET, PROGRAM, TIME, task_count):
         # 第一步：把 crash 和 queue 下所有文件读取出来，去掉包含 "+pat" 的文件，随后按照 "time" 排序
         # 加个 assert()，表示一个列表里绝对没有两个文件的 time 是相等的
         # 读取 crash 和 queue 文件夹下所有文件
-        crashdir = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/default/crashes/"
-        queuedir = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/default/queue/"
+        crashdir = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/crashes/"
+        queuedir = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/queue/"
         crashfiles = getfiles(crashdir)
         queuefiles = getfiles(queuedir)
-        # 去掉包含 "+pat" 文件，以及非常规文件，比如 README.txt
+        # 去掉包含 "+pat" 文件，剩余在 unique 文件夹中的文件必定带有 time:(\d+),execs:(\d+)
         filterfiles = []
+        pattern = r"time:(\d+),execs:(\d+),"
         # 先从 crashfiles 中过滤
         for file in crashfiles:
             pat_match = re.findall(r"\+pat", file)
             assert(len(pat_match) < 2)
             if pat_match:
                 continue
-            match_time  = re.findall(r"time:(\d+)", file)
-            match_execs = re.findall(r"execs:(\d+)", file)
-            # 过滤掉非常规文件，比如 README.txt
-            if (not match_time) or (not match_execs):
-                continue
-            assert(len(match_time) < 2)
-            assert(len(match_execs) < 2)
-            time_ms = int(match_time[0])
-            execs = int(match_execs[0])
-            inputfile = InputFile(time=time_ms, execs=execs, filename=(crashdir + file))
+            match = re.search(pattern, file)
+            assert(match)
+            time_val = int(match.group(1))  # 提取 time
+            execs_val = int(match.group(2))  # 提取 execs
+            # 先转为秒
+            time_val /= 1000
+            # 再把时间转为分钟，这里使用向上取整，因为我们希望能保留 time = 0 和 execs = 0，其它都算作1分钟的
+            time_val = math.ceil(time_val / 60)
+            # 构建为 InputFile 对象
+            inputfile = InputFile(time=time_val, execs=execs_val, filepath=(crashdir + file))
             filterfiles.append(inputfile)
         # 再从 queuefiles 中过滤
         for file in queuefiles:
@@ -144,26 +151,22 @@ def edge_data_collector(FUZZER, TARGET, PROGRAM, TIME, task_count):
             assert(len(pat_match) < 2)
             if pat_match:
                 continue
-            match_time  = re.findall(r"time:(\d+)", file)
-            match_execs = re.findall(r"execs:(\d+)", file)
-            # 过滤掉非常规文件，比如 README.txt
-            if (not match_time) or (not match_execs):
-                continue
-            assert(len(match_time) < 2)
-            assert(len(match_execs) < 2)
-            time_ms = int(match_time[0])
-            execs = int(match_execs[0])
-            inputfile = InputFile(time=time_ms, execs=execs, filename=(queuedir + file))
+            match = re.search(pattern, file)
+            assert(match)
+            time_val = int(match.group(1))  # 提取 time
+            execs_val = int(match.group(2))  # 提取 execs
+            # 先转为秒
+            time_val /= 1000
+            # 再把时间转为分钟，这里使用向上取整，因为我们希望能保留 time = 0 和 execs = 0，其它都算作1分钟的
+            time_val = math.ceil(time_val / 60)
+            # 构建为 InputFile 对象
+            inputfile = InputFile(time=time_val, execs=execs_val, filepath=(crashdir + file))
             filterfiles.append(inputfile)
-        # 按照 time 排序
+        # 第一步，按照 time 排序
         filterfiles.sort(key=lambda x : x.time)
-        # 断言：遍历 filterfiles，看看是否有任意两个元素的 time 相等
-        # 一开始有大量种子是 time 0 的，因为它们本就存在于 corpus 中，这部分要 skip
-        for i in range(len(filterfiles) - 1):
-            assert(filterfiles[i].time == 0 or filterfiles[i].time < filterfiles[i+1].time)
 
-        # 第二步：按照排序的顺序，逐个使用 getEdges 获取触发的 edges，记录数量，维护一个 class
-        # class 包含：time, execs, triggered_edges
+        # 第二步，按照时间排序后，挨个文件获取 edges_count，时间为分钟，后续再归并
+        # class 包含：time, execs, filepath, triggered_edges
         edge_set_accumulate = {}
         for inputfile in filterfiles:
             edge_set = getEdges(put, PROGRAM, inputfile.filename, "mapfile" + str(task_count), task_count)
@@ -184,15 +187,17 @@ def edge_data_collector(FUZZER, TARGET, PROGRAM, TIME, task_count):
             "edges_found"     : edges_list,
         }
         df = pd.DataFrame(data)
-        # relative_time 这一列是 ms 为单位，把它转为 s 为单位
-        df['# relative_time'] = df['# relative_time'] // 1000
+        # 按 '# relative_time' 分组，找到每组的最大 'total_execs'
+        df['total_execs'] = df.groupby('# relative_time')['total_execs'].transform('max')
+        # 按 '# relative_time' 分组，找到每组的最大 'edges_found'
+        df['edges_found'] = df.groupby('# relative_time')['edges_found'].transform('max')
+        # 按 '# relative_time' 列去重，保留第一行（默认）
+        df = df.drop_duplicates(subset='# relative_time', keep='first')
 
-        print(df)
-        sys.stdout.flush()
-
-        with finished_tasks.get_lock():
-            finished_tasks.value += 1
-            print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME} data collect")
+        # 打印信息，表示这个数据收集任务已完成
+        with FINISHED_TASKS.get_lock():
+            FINISHED_TASKS.value += 1
+            print(f"{FINISHED_TASKS.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME} data collect")
             sys.stdout.flush()
     except Exception as e:
         print(f"Exception caught in main process: {e}")
@@ -200,7 +205,7 @@ def edge_data_collector(FUZZER, TARGET, PROGRAM, TIME, task_count):
     return (FUZZER, TARGET, PROGRAM, TIME, df)
 # 被并行执行的函数 --------------------------------------------------------------- end
 
-############################################### 4. 绘制 edge 图   ################################################## doing
+############################################### 4. 绘制 edge 图   ################################################## checked
 results = parallel_framework(collect_data_worker, need_parallel_id=False)
 max_execs_dict = get_max_execs_dict(results)   
 draw_time("edge", "file_count", True, results, need_parallel_id=False)

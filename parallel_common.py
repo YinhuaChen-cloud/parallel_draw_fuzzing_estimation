@@ -54,9 +54,11 @@ def calculate_file_hash(filename):
         return None
 
 class InputFile:
-    def __init__(self, time: int, execs: int):
+    def __init__(self, time: int, execs: int, filepath: str):
         self.time = time
         self.execs = execs
+        self.filepath = filepath
+        self.edges = 0
 
 ############################ 2. 验证 fuzzing result 是否有异常 ################################# checked
 def verify_environment():
@@ -101,6 +103,9 @@ def verify_environment():
 # 一个全局变量，被所有并行任务共享，标识已经完成的任务数量
 FINISHED_TASKS = multiprocessing.Value('i', 0)  # 'i' 表示整数
 
+# 一个全局变量，被所有并行任务共享，标识正在进行的任务标号
+TASK_COUNT = multiprocessing.Value('i', 0)  # 'i' 表示整数
+
 def parallel_framework(collect_data_worker, need_parallel_id: bool):
     # 获取当前机器上的 CPU cores 总数，方便后续并行操作
     num_cores = multiprocessing.cpu_count()
@@ -114,7 +119,8 @@ def parallel_framework(collect_data_worker, need_parallel_id: bool):
     results = []
 
     # 任务数计数器，也可以叫任务序号计数器
-    task_count = 0
+    with TASK_COUNT.get_lock():
+        TASK_COUNT = 0
 
     # 为每一个 program-fuzzer-repeat_time 收集 plot_data 数据
     for PROGRAM in PROGRAMS:
@@ -141,11 +147,9 @@ def parallel_framework(collect_data_worker, need_parallel_id: bool):
                         if need_parallel_id:
                             for parallel_id in PARALLEL_IDS:
                                 result = pool.apply_async(collect_data_worker, (FUZZER, TARGET, PROGRAM, TIME, parallel_id))
-                                task_count += 1
                                 results.append(result)
                         else:
                             result = pool.apply_async(collect_data_worker, (FUZZER, TARGET, PROGRAM, TIME))
-                            task_count += 1
                             results.append(result)
 
     # 打印看看一共有多少个并行任务在运行
