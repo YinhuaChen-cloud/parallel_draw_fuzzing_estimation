@@ -51,6 +51,7 @@ def getEdges(put, program, filename, mapfile, task_count):
 
     # 如果当前正在处理的 PROGRAM 是 tiffcp，那么需要做一些特殊处理。
     # 原因是 tiffcp 不能识别 AFL++ 的 crash 文件命名方式，所以需要对 AFL++ 的 crash 文件重命名
+    result = None
     if program == "tiffcp":
         tmpcmd = ["cp", filename, "deadbeef_bug." + str(task_count)]
         try:
@@ -67,7 +68,10 @@ def getEdges(put, program, filename, mapfile, task_count):
 
     # 执行 command，产生 mapfile
     try: 
+        print("=============== before =============")
+        print(command)
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=5)
+        print("=============== after =============")
     except:
         print("result.stdout =============================")
         print(result.stdout)
