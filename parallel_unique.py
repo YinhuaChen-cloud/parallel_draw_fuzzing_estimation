@@ -75,7 +75,7 @@ def unique_files(FUZZER, TARGET, PROGRAM, TIME):
 # 被并行执行的函数 --------------------------------------------------------------- end
 
 ######################################## 3. 执行 unique crash/queue #################################### checked
-CRASH_OR_QUEUE = "crash"
+CRASH_OR_QUEUE = "crashes"
 results = parallel_framework(unique_files, need_parallel_id=False)
 CRASH_OR_QUEUE = "queue"
 results = parallel_framework(unique_files, need_parallel_id=False)
