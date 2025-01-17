@@ -125,30 +125,11 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
         # 第一步：把 crash 和 queue 下所有文件读取出来，去掉包含 "+pat" 的文件，随后按照 "time" 排序
         # 加个 assert()，表示一个列表里绝对没有两个文件的 time 是相等的
         # 读取 crash 和 queue 文件夹下所有文件
-        crashdir = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/crashes/"
         queuedir = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/queue/"
-        crashfiles = getfiles(crashdir)
         queuefiles = getfiles(queuedir)
         # 去掉包含 "+pat" 文件，剩余在 unique 文件夹中的文件必定带有 time:(\d+),execs:(\d+)
         filterfiles = []
         pattern = r"time:(\d+),execs:(\d+),"
-        # 先从 crashfiles 中过滤
-        for file in crashfiles:
-            pat_match = re.findall(r"\+pat", file)
-            assert(len(pat_match) < 2)
-            if pat_match:
-                continue
-            match = re.search(pattern, file)
-            assert(match)
-            time_val = int(match.group(1))  # 提取 time
-            execs_val = int(match.group(2))  # 提取 execs
-            # 先转为秒
-            time_val /= 1000
-            # 再把时间转为分钟，这里使用向上取整，因为我们希望能保留 time = 0 和 execs = 0，其它都算作1分钟的
-            time_val = math.ceil(time_val / 60)
-            # 构建为 InputFile 对象
-            inputfile = InputFile(time=time_val, execs=execs_val, filepath=(crashdir + file))
-            filterfiles.append(inputfile)
         # 再从 queuefiles 中过滤
         for file in queuefiles:
             pat_match = re.findall(r"\+pat", file)
@@ -164,7 +145,7 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
             # # 再把时间转为分钟，这里使用向上取整，因为我们希望能保留 time = 0 和 execs = 0，其它都算作1分钟的
             # time_val = math.ceil(time_val / 60)
             # 构建为 InputFile 对象
-            inputfile = InputFile(time=time_val, execs=execs_val, filepath=(crashdir + file))
+            inputfile = InputFile(time=time_val, execs=execs_val, filepath=(queuedir + file))
             filterfiles.append(inputfile)
         # 第一步，按照 time 排序
         filterfiles.sort(key=lambda x : x.time)
