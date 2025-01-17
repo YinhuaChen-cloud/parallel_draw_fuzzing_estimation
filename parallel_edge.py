@@ -157,8 +157,8 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
             execs_val = int(match.group(2))  # 提取 execs
             # 先转为秒
             time_val /= 1000
-            # 再把时间转为分钟，这里使用向上取整，因为我们希望能保留 time = 0 和 execs = 0，其它都算作1分钟的
-            time_val = math.ceil(time_val / 60)
+            # # 再把时间转为分钟，这里使用向上取整，因为我们希望能保留 time = 0 和 execs = 0，其它都算作1分钟的
+            # time_val = math.ceil(time_val / 60)
             # 构建为 InputFile 对象
             inputfile = InputFile(time=time_val, execs=execs_val, filepath=(crashdir + file))
             filterfiles.append(inputfile)
