@@ -15,9 +15,6 @@ from parallel_common import *
 verify_environment()
 
 ######################################## 2. 并行读取绘图所需数据 (queue) #################################### doing
-
-
-
 # 被并行执行的函数 --------------------------------------------------------------- start 
 def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
     # 返回一个 DataFrame
@@ -64,9 +61,9 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
     df = df.drop_duplicates(subset='# relative_time', keep='first')
 
     # 打印信息，表示这个数据收集任务已完成
-    with finished_tasks.get_lock():
-        finished_tasks.value += 1
-        print(f"{finished_tasks.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME} data collect")
+    with FINISHED_TASKS.get_lock():
+        FINISHED_TASKS.value += 1
+        print(f"{FINISHED_TASKS.value} finish {FUZZER}-{TARGET}-{PROGRAM}-{TIME} data collect")
         sys.stdout.flush()
     # 返回存储数据的 DataFrame，也就是 df，前面的几个元素是为了标识这个 df 属于哪个 PROGRAM-FUZZER-TIME
     return (FUZZER, TARGET, PROGRAM, TIME, df)
@@ -282,16 +279,7 @@ def draw_execs(name: str, colname: str, accumulate: bool):
     sys.stdout.flush()
 
 ############################################### 5. 绘制 throughput_time 图    ################################################## 完成
+draw_time("seed", "corpus_count", True)
+draw_execs("seed", "corpus_count", True)
 
-if draw_configure["seed_time"]:
-    draw_time("seed", "corpus_count", True)
-
-if draw_configure["seed_execs"]:
-    draw_execs("seed", "corpus_count", True)
-
-############################################### 6. 要结束了                   ################################################## 完成
-# 关闭并行任务池子、退出
-pool.close()
-pool.join()
-exit(0)  
 
