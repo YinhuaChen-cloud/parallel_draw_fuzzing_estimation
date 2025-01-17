@@ -36,13 +36,15 @@ TODO: 等待测试
 
 ### 绘制 crash 图 和 seed 图
 
+先使用 parallel_unique.py 生成 unique 文件夹
+
 在 parallel_common.py 设置好参数，随后：
 ```bash
 cp parallel_common.py parallel_crash_seed.py <储存fuzzing结果的workdir>/cache 
 cd <储存fuzzing结果的workdir>/cache 
 python3 parallel_crash_seed.py
 ```
-TODO: 写代码中
+TODO: 等待测试
 
 ---
 
