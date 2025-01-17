@@ -50,7 +50,17 @@ TODO: 等待测试
 
 ### 绘制 edges
 
-TODO: here
+为了绘制 edges 图，需要 afl-showmap，这里先 docker pull 一个带有 afl-showmap 的 docker images
+```bash
+docker pull chenyinhua/afl-showmap-image:latest
+```
+
+可以用以下方法运行镜像中的 afl-showmap
+```bash
+docker run chenyinhua/afl-showmap-image /magma/fuzzers/aflplusplus/repo/afl-showmap
+```
+
+TODO: 写代码中
 
 ---
 
