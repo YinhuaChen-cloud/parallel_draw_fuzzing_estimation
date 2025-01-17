@@ -242,8 +242,8 @@ def draw_time(name: str, colname: str, accumulate: bool, results: list, need_par
                     # 部分实验可能会运行超过规定的时间，我们把超过规定时间的数据忽略掉
                     if k < SPLIT_NUM:
                         slot[k] = int(row[colname])
-                # 因为我们计算 k 是向上取整，所以元素0必须为0
-                assert(slot[0] == 0)
+                # slot[0] 可以为 0，毕竟有 time == 0 的种子
+                # assert(slot[0] == 0)
                 # 如果这个属性是 “积累属性”，那么就需要填补 slot 中为 0 的部分
                 if accumulate:
                     for i in range(SPLIT_NUM):

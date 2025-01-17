@@ -47,7 +47,7 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
         time_list.append(inputfile.time)
         execs_list.append(inputfile.execs)
         file_count += 1
-        file_count_list.append(file_count_list)
+        file_count_list.append(file_count)
     data = {
         "# relative_time" : time_list,
         "total_execs"     : execs_list,
