@@ -11,7 +11,7 @@ import math
 
 from parallel_common import *
 
-######################################## 1. 验证 fuzzing result 是否有异常 ###################################### checked
+########################################### 1. 验证 fuzzing result 是否有异常 ###################################### checked
 verify_environment()
 
 ########################################### 2. 并行读取绘图所需数据 (DIRNAME) ###################################### checked
@@ -34,7 +34,7 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
         # 再把时间转为分钟，这里使用向上取整，因为我们希望能保留 time = 0 和 execs = 0，其它都算作1分钟的
         time_val = math.ceil(time_val / 60)
         # 构建为 InputFile 对象
-        inputfile = InputFile(time=time_val, execs=execs_val)
+        inputfile = InputFile(time=time_val, execs=execs_val, filepath="")
         InputFile_list.append(inputfile)
     # 按照时间排序
     InputFile_list.sort(key=lambda x : x.time)

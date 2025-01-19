@@ -9,7 +9,7 @@ cd <储存fuzzing结果的workdir>/cache
 python3 parallel_throughput.py
 ```
 会在 cache 目录下生成 throughput 的 .svg 图片
-TODO: 等待测试
+NOTE: 已经通过测试
 
 ---
 
