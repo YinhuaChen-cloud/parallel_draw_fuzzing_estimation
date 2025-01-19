@@ -44,14 +44,13 @@ cp parallel_common.py parallel_crash_seed.py <储存fuzzing结果的workdir>/cac
 cd <储存fuzzing结果的workdir>/cache 
 python3 parallel_crash_seed.py
 ```
-TODO: 等待测试
+NOTE: 已经经过测试
 
 ---
 
 ### 绘制 edges
 
-! 若没有 singularity，把非 +pat 种子打包给我，我来画吧
-为了绘制 edges 图，需要 afl-showmap，这里先 docker pull 一个带有 afl-showmap 的 docker images
+<!-- 为了绘制 edges 图，需要 afl-showmap，这里先 docker pull 一个带有 afl-showmap 的 docker images
 ```bash
 docker pull chenyinhua/afl-showmap-image:latest
 ```
@@ -59,7 +58,8 @@ docker pull chenyinhua/afl-showmap-image:latest
 可以用以下方法运行镜像中的 afl-showmap
 ```bash
 docker run chenyinhua/afl-showmap-image /magma/fuzzers/aflplusplus/repo/afl-showmap
-```
+``` -->
+若没有 singularity，把非 +pat 种子打包给我，我来画吧，或者把非 +pat 种子传输到其它有 sudo 权限的机器上
 
 TODO: 等待测试
 
