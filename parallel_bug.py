@@ -119,6 +119,7 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
             "bugs_found"      : bugs_list,
         }
         df = pd.DataFrame(data)
+        df = df.sort_values("# relative_time")
         # 按 '# relative_time' 分组，找到每组的最大 'total_execs'
         df['total_execs'] = df.groupby('# relative_time')['total_execs'].transform('max')
         # 按 '# relative_time' 分组，找到每组的最大 'edges_found'
@@ -137,9 +138,9 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
     return (FUZZER, TARGET, PROGRAM, TIME, df)
 # 被并行执行的函数 --------------------------------------------------------------- end
 
-############################################### 4. 绘制 edge 图   ################################################## checked
+############################################### 4. 绘制 bug 图   ################################################## checked
 results = parallel_framework(collect_data_worker, need_parallel_id=False)
 max_execs_dict = get_max_execs_dict(results)   
-draw_time("edge", "edges_found", True, results, need_parallel_id=False)
-draw_execs("edge", "edges_found", True, results, max_execs_dict, need_parallel_id=False)
+draw_time("bug", "bugs_found", True, results, need_parallel_id=False)
+draw_execs("bug", "bugs_found", True, results, max_execs_dict, need_parallel_id=False)
 

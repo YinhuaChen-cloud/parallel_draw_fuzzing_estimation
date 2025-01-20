@@ -54,6 +54,7 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
         "file_count"      : file_count_list,
     }
     df = pd.DataFrame(data)
+    df = df.sort_values("# relative_time")
     # 按 '# relative_time' 分组，找到每组的最大 'total_execs'
     df['total_execs'] = df.groupby('# relative_time')['total_execs'].transform('max')
     # 按 '# relative_time' 分组，找到每组的最大 'file_count'
