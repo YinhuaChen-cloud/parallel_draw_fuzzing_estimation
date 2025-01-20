@@ -68,7 +68,7 @@ TODO: 等待测试
 ### 绘制 bugs
 
 parallel_bug.py
-TODO: 写代码中
+TODO: 等待测试
 
 ---
 
