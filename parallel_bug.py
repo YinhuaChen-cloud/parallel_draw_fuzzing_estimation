@@ -9,11 +9,9 @@ from parallel_common import *
 ######################################## 1. 验证 fuzzing result 是否有异常 ###################################### checked
 verify_environment()
 
-######################################## 2. 获取 edges 所需的配置 ############################################### checked
-base_command = ['singularity', 'run', 'afl-showmap.sif', '/magma/fuzzers/aflplusplus/repo/afl-showmap', '-o', 'MAPFILE', '-m', 'none', '-e', '--', 'PUT']
-
+######################################## 2. 运行出 bugs 所需的命令 ############################################### checked
 # 这些 program_args 表示需要各个 PUT 在单独运行某些种子时，需要添加的参数
-edge_program_args = {
+program_args = {
     # lAVAM
     "base64": ["-d", "INPUT_FILE"],        
     "md5sum": ["-c", "INPUT_FILE"],        
@@ -21,83 +19,45 @@ edge_program_args = {
     "who": ["INPUT_FILE"],        
 }
 
-# 获取某个文件能触发的 edges 编号
-# 这个函数的目的：使用 afl-showmap 获取输入文件 filename 对程序 put 触发的 edges 合集，通过一个字典返回
+# 在 timeout 限制下来运行一个命令
+def sub_run(cmd, timeout):
+    try: 
+         r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=timeout)
+         return r
+    except subprocess.TimeoutExpired:
+        print("time out")
+        return None
+
+# 获取某个文件能触发的 bugs 编号
+# 这个函数的目的：获取 filename 能在 program 上触发的 bugs dict
 # 参数 put: PUT 可执行文件的实际路径
 # 参数 program: PUT 对应的 PROGRAM 的字符串名称
 # 参数 filename: 输入文件的实际路径
-# 参数 mapfile: 用来存放 edgemap 的文件路径
-# task_count: 表示这是第几个并行任务
-def getEdges(put, program, filename, mapfile, task_count):
-    # triggered_edges_set 包含 filename 能触发的 edges 的编号
-    triggered_edges_set = {}
-    # 深拷贝
-    command = copy.deepcopy(base_command)
-    # 把 PUT占位符 替换成实际的 put 文件路径
-    command[-1] = put
-    # 把 MAPFILE 占位符 替换成实际的 mapfile 文件路径
-    command[5] = mapfile
-    # 断言：对应 PROGRAM 的参数在字典中一定存在
-    assert(edge_program_args[program] is not None)
-    # 往命令行列表添加 PROGRAM 参数
-    for arg in edge_program_args[program]:
-        if arg == "INPUT_FILE":
-            command.append(filename)
-        elif arg == "TMPOUT":
-            command.append("tmp.out." + str(task_count))
-        else:
-            command.append(arg)
+def getBugs(put, program, filename):
+    # 断言：某参数已经齐全
+    assert(program_args[program] is not None)
+    # 构建命令
+    cmd = [put]
+    cmd.append(program_args[program])
+    cmd.append(filename)
+    # 6秒限制超时，运行该命令
+    r = sub_run(cmd, 6)
+    # 如果没有输出，返回空字典
+    if r is None:
+        return {}
+    # 如果有输出，那么检查是否 trigger 了注入的 bugs，返回一个字典
+    bug_dict = {}
+    out = r.stdout.split(b'\n')
+    for line in out:
+        # 如果 trigger 了 bugs，那么存入一个列表，最后返回
+        if line.startswith(b"Successfully triggered bug"):
+            dot = line.split(b',')[0]
+            cur_id = int(dot[27:])
+            if cur_id not in bug_dict:                        
+                bug_dict[cur_id] = 1
+    return bug_dict
 
-    # 如果当前正在处理的 PROGRAM 是 tiffcp，那么需要做一些特殊处理。
-    # 原因是 tiffcp 不能识别 AFL++ 的 crash 文件命名方式，所以需要对 AFL++ 的 crash 文件重命名
-    result = None
-    if program == "tiffcp":
-        tmpcmd = ["cp", filename, "deadbeef_bug." + str(task_count)]
-        try:
-            result = subprocess.run(tmpcmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=5)
-        except:
-            print("Unexpected error at tiffcp: " + filename)
-            print("result.stdout =============================")
-            print(result.stdout)
-            print("result.stderr =============================")
-            print(result.stderr)
-            assert(0)
-        # 重命名成功后，把 command 中的输入文件替换成重命名后的文件
-        command[12] = tmpcmd[2]
-
-    # 执行 command，产生 mapfile
-    try: 
-        print("=============== before =============")
-        print(command)
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=5)
-        print("=============== after =============")
-    except:
-        print("result.stdout =============================")
-        print(result.stdout)
-        print("result.stderr =============================")
-        print(result.stderr)
-        print("===== or TIME OUT, filename = " + filename)
-        assert(0)
-
-    # # 打印命令的标准输出，这个一般在 DEBUG 时用
-    # print("标准输出:")
-    # print(result.stdout)
-
-    # 打开产生的 mapfile 文件，把触发的 edges 存入 triggered_edges_set
-    with open(mapfile, 'r') as the_mapfile:
-        for line in the_mapfile:
-            # 去除每行的前后白字符
-            line = line.strip()
-            # 分割每行的字符串和整数
-            if ':' in line:
-                key, value = line.split(':', 1)
-                # 存入字典
-                triggered_edges_set[key] = 1
-
-    # 返回字典
-    return triggered_edges_set 
-
-########################################### 3. 并行获取 edges 所需数据 ###################################### checked
+########################################### 3. 并行获取 bugs 所需数据 ###################################### checked
 # 被并行执行的函数 --------------------------------------------------------------- start
 def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
 
@@ -112,69 +72,57 @@ def collect_data_worker(FUZZER, TARGET, PROGRAM, TIME):
 
     df = None
     try:
-        # 第一步：把 crash 和 queue 下所有文件读取出来，去掉包含 "+pat" 的文件，随后按照 "time" 排序
-        # 加个 assert()，表示一个列表里绝对没有两个文件的 time 是相等的
-        # 第二步：按照排序的顺序，逐个使用 getEdges 获取触发的 edges，记录数量，维护一个 class
-        # class 包含：time, execs, triggered_edges
-        # 第三步，根据第二部得到的 class 列表，构造一个 dataFrame，随后返回这个 dataframe
+        # 第一步：把 crash 所有文件读出来，按照时间排序
+        # 第二步：按照排序的顺序，逐个使用 getBugs 获取触发的 bug_dict
+        # 第三步，根据第二步得到的数据，构造一个 dataFrame，随后返回这个 dataframe
 
         # 无论何时，用来计算触发 edges 的 PUT 都是同一个
-        put = "aflplusplus" + "/" + TARGET + "/" + PROGRAM + "/0/afl/" + PROGRAM
+        put = "clang" + "/" + TARGET + "/" + PROGRAM + "/0/afl/" + PROGRAM
 
-        # 第一步：把 crash 和 queue 下所有文件读取出来，去掉包含 "+pat" 的文件，随后按照 "time" 排序
-        # 加个 assert()，表示一个列表里绝对没有两个文件的 time 是相等的
-        # 读取 crash 和 queue 文件夹下所有文件
-        queuedir = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/queue/"
-        queuefiles = getfiles(queuedir)
-        # 去掉包含 "+pat" 文件，剩余在 unique 文件夹中的文件必定带有 time:(\d+),execs:(\d+)
-        filterfiles = []
+        # 第一步：把 crash 所有文件读出来，按照时间排序
+        crashdir = FUZZER + "/" + TARGET + "/" + PROGRAM + "/" + TIME + "/findings/unique/crashes/"
+        crashfiles = getfiles(crashdir)
         pattern = r"time:(\d+),execs:(\d+),"
-        # 再从 queuefiles 中过滤
-        for file in queuefiles:
-            pat_match = re.findall(r"\+pat", file)
-            assert(len(pat_match) < 2)
-            if pat_match:
-                continue
+        inputfile_list = []
+        for file in crashfiles:
             match = re.search(pattern, file)
             assert(match)
             time_val = int(match.group(1))  # 提取 time
             execs_val = int(match.group(2))  # 提取 execs
             # 先转为秒
             time_val /= 1000
-            # # 再把时间转为分钟，这里使用向上取整，因为我们希望能保留 time = 0 和 execs = 0，其它都算作1分钟的
-            # time_val = math.ceil(time_val / 60)
             # 构建为 InputFile 对象
-            inputfile = InputFile(time=time_val, execs=execs_val, filepath=(queuedir + file))
-            filterfiles.append(inputfile)
+            inputfile = InputFile(time=time_val, execs=execs_val, filepath=(crashdir + file))
+            inputfile_list.append(inputfile)
         # 第一步，按照 time 排序
-        filterfiles.sort(key=lambda x : x.time)
+        inputfile_list.sort(key=lambda x : x.time)
 
-        # 第二步，按照时间排序后，挨个文件获取 edges_count，时间为分钟，后续再归并
+        # 第二步：按照排序的顺序，逐个使用 getBugs 获取触发的 bug_dict
         # class 包含：time, execs, filepath, triggered_edges
-        edge_set_accumulate = {}
-        for inputfile in filterfiles:
-            edge_set = getEdges(put, PROGRAM, inputfile.filepath, "mapfile" + str(task_count), task_count)
-            edge_set_accumulate.update(edge_set)
-            inputfile.edges = len(edge_set_accumulate)
+        bug_set_accumulate = {}
+        for inputfile in inputfile_list:
+            bug_dict = getBugs(put, PROGRAM, inputfile.filepath)
+            bug_set_accumulate.update(bug_dict)
+            inputfile.bugs = len(bug_set_accumulate)
 
-        # 第三步，根据第二部得到的 class 列表，构造一个 dataFrame，随后返回这个 dataframe
+        # 第三步，根据第二步得到的数据，构造一个 dataFrame，随后返回这个 dataframe
         time_list  = []
         execs_list = []
-        edges_list = []
-        for inputfile in filterfiles:
+        bugs_list = []
+        for inputfile in inputfile_list:
             time_list.append(inputfile.time)
             execs_list.append(inputfile.execs)
-            edges_list.append(inputfile.edges)
+            bugs_list.append(inputfile.bugs)
         data = {
             "# relative_time" : time_list,
             "total_execs"     : execs_list,
-            "edges_found"     : edges_list,
+            "bugs_found"      : bugs_list,
         }
         df = pd.DataFrame(data)
         # 按 '# relative_time' 分组，找到每组的最大 'total_execs'
         df['total_execs'] = df.groupby('# relative_time')['total_execs'].transform('max')
         # 按 '# relative_time' 分组，找到每组的最大 'edges_found'
-        df['edges_found'] = df.groupby('# relative_time')['edges_found'].transform('max')
+        df['bugs_found'] = df.groupby('# relative_time')['bugs_found'].transform('max')
         # 按 '# relative_time' 列去重，保留第一行（默认）
         df = df.drop_duplicates(subset='# relative_time', keep='first')
 

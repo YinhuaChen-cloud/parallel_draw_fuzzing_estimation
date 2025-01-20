@@ -59,6 +59,7 @@ class InputFile:
         self.execs = execs
         self.filepath = filepath
         self.edges = 0
+        self.bugs = 0
 
 ############################ 2. 验证 fuzzing result 是否有异常 ################################# checked
 def verify_environment():
