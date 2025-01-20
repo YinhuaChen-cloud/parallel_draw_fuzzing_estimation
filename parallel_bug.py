@@ -38,8 +38,12 @@ def getBugs(put, program, filename):
     assert(program_args[program] is not None)
     # 构建命令
     cmd = [put]
-    cmd.append(program_args[program])
-    cmd.append(filename)
+    for arg in program_args[program]:
+        if arg == "INPUT_FILE":
+            cmd.append(filename)
+        else:
+            cmd.append(arg)
+    print(cmd)
     # 6秒限制超时，运行该命令
     r = sub_run(cmd, 6)
     # 如果没有输出，返回空字典
