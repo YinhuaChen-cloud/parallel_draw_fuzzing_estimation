@@ -67,8 +67,8 @@ TODO: 等待测试
 
 ### 绘制 bugs
 
-把 crash 种子给我，我来绘制吧
-TODO: here
+parallel_bug.py
+TODO: 写代码中
 
 ---
 
