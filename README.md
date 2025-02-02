@@ -48,14 +48,14 @@ NOTE: 已经经过测试
 
 ---
 
-### 绘制 edges
+### 绘制 edges 图
 
 parallel_edge.py
 NOTE: 已经通过测试
 
 ---
 
-### 绘制 bugs
+### 绘制 bugs 图
 
 parallel_bug.py
 NOTE: 已经通过测试
