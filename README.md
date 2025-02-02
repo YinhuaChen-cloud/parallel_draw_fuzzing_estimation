@@ -1,5 +1,7 @@
 # 通过并行方法绘制 fuzzing 结果曲线图
 
+运行下面的绘图程序之前需要先在 parallel_common.py 的 "0.配置部分" 做出相应的修改
+
 ### 绘制 Throughput
 
 在 parallel_common.py 设置好参数，随后：

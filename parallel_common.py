@@ -6,9 +6,9 @@ import math
 import hashlib
 
 ######################################## 0. 配置部分 ########################################## checked
-TOTAL_TIME = 60 * 36 # 单位分 钟
+TOTAL_TIME = 60 # 单位分 钟
 FUZZERS = ["aflplusplus", "fixversion"]
-TARGETS = ["base64", "md5sum", "uniq", "who"]
+TARGETS = ["base64", "md5sum", "uniq", "who", "libpng", "libsndfile", "libtiff", "libxml2", "lua", "php", "sqlite3"]
 # 表明这个脚本所运行的文件夹
 WORKDIR = "cache"
 # 重复次数
