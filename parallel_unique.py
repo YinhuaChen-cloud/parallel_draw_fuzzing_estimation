@@ -42,6 +42,7 @@ def unique_files(FUZZER, TARGET, PROGRAM, TIME):
             execs_val = int(match.group(2))  # 提取 execs
             file_path = crahs_queue_path + "/" + file
             file_hash = calculate_file_hash(file_path)
+			assert(file_hash)
             if file_hash:
                 if file_hash not in hashpool:
                     hashpool[file_hash] = {}
